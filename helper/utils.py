@@ -225,8 +225,15 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                 [InlineKeyboardButton(text='Cᴀɴᴄᴇʟ', callback_data=f'skip-{UID}')]
             ])
         )
+
+        watermark_code = await db.get_watermark(query.from_user.id)
         
-        cmd = f"""ffmpeg -i "{dl}" {ffmpegcode} "{Output_Path}" -y"""
+        if watermark_code:
+            fffmpeg_code = f"{ffmpegcode} {watermark_code}"
+        else:
+            fffmpeg_code = ffmpegcode
+      
+        cmd = f"""ffmpeg -i "{dl}" {fffmpegcode} "{Output_Path}" -y"""
 
         process = await asyncio.create_subprocess_shell(
             cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
