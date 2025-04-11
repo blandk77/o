@@ -14,7 +14,7 @@ from config import Config
 from script import Txt
 from pyrogram import enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
-from .database import Database
+
 
 QUEUE = []
 
@@ -225,20 +225,17 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                 [InlineKeyboardButton(text='Cᴀɴᴄᴇʟ', callback_data=f'skip-{UID}')]
             ])
         )
-
-        watermark_code = await db.get_watermark(query.from_user.id)
         
-        if watermark_code:
-            fffmpeg_code = f"{ffmpegcode} {watermark_code}"
+        # Check if the user has a watermark set
+        watermark_text = await db.get_watermark(UID)
+        if watermark_text:
+            cmd = f"""ffmpeg -i "{dl}" {watermark} {ffmpegcode} "{Output_Path}" -y"""
         else:
-            fffmpeg_code = ffmpegcode
-      
-        cmd = f"""ffmpeg -i "{dl}" {fffmpegcode} "{Output_Path}" -y"""
+            cmd = f"""ffmpeg -i "{dl}" {ffmpegcode} "{Output_Path}" -y"""
 
         process = await asyncio.create_subprocess_shell(
             cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        
 
         stdout, stderr = await process.communicate()
         er = stderr.decode()
@@ -251,7 +248,6 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                 return
         except BaseException:
             pass
-        
 
         # Clean up resources
         # Now Uploading to the User
