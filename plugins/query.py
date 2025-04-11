@@ -103,12 +103,12 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
         try:
             c_thumb = await db.get_thumbnail(query.from_user.id)
             dffmpeg = "-preset veryfast -c:v libx264 -s 840x480 -x265-params 'bframes=8:psy-rd=1:ref=3:aq-mode=3:aq-strength=0.8:deblock=1,1' -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 -threads 5"
+            watermark = await db.get_watermark(UID)
+            if watermark:
+                ffmpeg = f"{watermark} {dffmpeg}"
+            else:
+                ffmpeg = f"{dffmpeg}"
             await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)
-        watermark = await db.get_watermark(UID)
-        if watermark:
-            ffmpeg = f"{watermark} {dffmpeg}"
-        else:
-            ffmpeg = f"{dffmpeg}"
         except Exception as e:
             print(e)
 
@@ -116,12 +116,12 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
         try:
             c_thumb = await db.get_thumbnail(query.from_user.id)
             dffmpeg = "-preset veryfast -c:v libx264 -s 1280x720 -x265-params 'bframes=8:psy-rd=1:ref=3:aq-mode=3:aq-strength=0.8:deblock=1,1' -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 -threads 5"
+            watermark = await db.get_watermark(UID)
+            if watermark:
+                ffmpeg = f"{watermark} {dffmpeg}"
+            else:
+                ffmpeg = f"{dffmpeg}"
             await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)
-        watermark = await db.get_watermark(UID)
-        if watermark:
-            ffmpeg = f"{watermark} {dffmpeg}"
-        else:
-            ffmpeg = f"{dffmpeg}"
         except Exception as e:
             print(e)
 
@@ -130,12 +130,12 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
         try:
             c_thumb = await db.get_thumbnail(query.from_user.id)
             dffmpeg = "-preset veryfast -c:v libx264 -s 1920x1080 -x265-params 'bframes=8:psy-rd=1:ref=3:aq-mode=3:aq-strength=0.8:deblock=1,1' -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 -threads 5"
+            watermark = await db.get_watermark(UID)
+            if watermark:
+                ffmpeg = f"{watermark} {dffmpeg}"
+            else:
+                ffmpeg = f"{dffmpeg}"
             await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)
-        watermark = await db.get_watermark(UID)
-        if watermark:
-            ffmpeg = f"{watermark} {dffmpeg}"
-        else:
-            ffmpeg = f"{dffmpeg}"
         except Exception as e:
             print(e)
 
@@ -144,12 +144,12 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
         try:
             c_thumb = await db.get_thumbnail(query.from_user.id)
             dffmpeg = "-preset veryfast -c:v libx264 -s 3840x2160 -x265-params 'bframes=8:psy-rd=1:ref=3:aq-mode=3:aq-strength=0.8:deblock=1,1' -pix_fmt yuv420p -crf 30 -c:a libopus -b:a 32k -c:s copy -map 0 -ac 2 -ab 32k -vbr 2 -level 3.1 -threads 5"
+            watermark = await db.get_watermark(UID)
+            if watermark:
+                ffmpeg = f"{watermark} {dffmpeg}"
+            else:
+                ffmpeg = f"{dffmpeg}"
             await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)
-        watermark = await db.get_watermark(UID)
-        if watermark:
-            ffmpeg = f"{watermark} {dffmpeg}"
-        else:
-            ffmpeg = f"{dffmpeg}"
         except Exception as e:
             print(e)
 
@@ -164,7 +164,12 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
 
             else:
                 BUTT = [
-                    [InlineKeyboardButton(
+                    [Inline            watermark = await db.get_watermark(UID)
+            if watermark:
+                ffmpeg = f"{watermark} {dffmpeg}"
+            else:
+                ffmpeg = f"{dffmpeg}"
+            await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)KeyboardButton(
                         text='Sᴇᴛ Fғᴍᴘᴇɢ Cᴏᴅᴇ', callback_data='setffmpeg')],
                     [InlineKeyboardButton(
                         text='⟸ Bᴀᴄᴋ', callback_data=f'compress-{query.from_user.id}')]
