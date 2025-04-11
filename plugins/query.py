@@ -164,12 +164,7 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
 
             else:
                 BUTT = [
-                    [Inline            watermark = await db.get_watermark(UID)
-            if watermark:
-                ffmpeg = f"{watermark} {dffmpeg}"
-            else:
-                ffmpeg = f"{dffmpeg}"
-            await CompressVideo(bot=bot, query=query, ffmpegcode=ffmpeg, c_thumb=c_thumb)KeyboardButton(
+                    [InlineKeyboardButton(
                         text='Sᴇᴛ Fғᴍᴘᴇɢ Cᴏᴅᴇ', callback_data='setffmpeg')],
                     [InlineKeyboardButton(
                         text='⟸ Bᴀᴄᴋ', callback_data=f'compress-{query.from_user.id}')]
@@ -177,6 +172,7 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
                 await query.message.edit(text="You Don't Have Any Custom FFMPEG Code. 🛃", reply_markup=InlineKeyboardMarkup(BUTT))
         except Exception as e:
             print(e)
+
 
     elif data.startswith("close"):
 
