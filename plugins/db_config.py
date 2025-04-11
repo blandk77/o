@@ -168,3 +168,44 @@ async def see_metadata(client, message):
         await SnowDev.edit(f"✅ <b>Yᴏᴜʀ Cᴜʀʀᴇɴᴛ Mᴇᴛᴀᴅᴀᴛᴀ Cᴏᴅᴇ ɪs :-</b>\n\n<code>{metadata}</code>")
     else:
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Mᴇᴛᴀᴅᴀᴛᴀ Cᴏᴅᴇ**__")
+
+@Client.on_message((filters.group | filters.private) & filters.command('set_wm'))
+async def set_watermark(client, message):
+    if not await db.is_user_exist(message.from_user.id):
+        await CANT_CONFIG_GROUP_MSG(client, message)
+        return
+
+    if len(message.command) == 1:
+        return await message.reply_text("**__Gɪᴠᴇ Tʜᴇ Wᴀᴛᴇʀᴍᴀʀᴋ Tᴇxᴛ__\n\nExᴀᴍᴩʟᴇ:- ")
+
+    SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
+    watermark_text = message.text.split(" ", 1)[1]
+    await db.set_watermark(message.from_user.id, watermark=Watermark)
+    await message.reply_text("__**✅ Wᴀᴛᴇʀᴍᴀʀᴋ Sᴀᴠᴇᴅ**__")
+
+
+@Client.on_message((filters.group | filters.private) & filters.command('see_wm'))
+async def see_watermark(client, message):
+    if not await db.is_user_exist(message.from_user.id):
+        await CANT_CONFIG_GROUP_MSG(client, message)
+        return
+
+    watermark = await db.get_watermark(message.from_user.id)
+    if watermark:
+        await message.reply_text(f"**Yᴏᴜʀ Wᴀᴛᴇʀᴍᴀʀᴋ:-**\n\n`{watermark}`")
+    else:
+        await message.reply_text("__**😔 Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
+
+
+@Client.on_message((filters.group | filters.private) & filters.command('del_wm'))
+async def delete_watermark(client, message):
+    if not await db.is_user_exist(message.from_user.id):
+        await CANT_CONFIG_GROUP_MSG(client, message)
+        return
+
+    SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
+    watermark = await db.get_watermark(message.from_user.id)
+    if not watermark:
+        return await SnowDev.edit("__**😔 Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
+    await db.delete_watermark(message.from_user.id)
+    await SnowDev.edit("__**❌ Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
