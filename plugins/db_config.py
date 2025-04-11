@@ -7,13 +7,13 @@ from script import Txt
 from asyncio.exceptions import TimeoutError
 
 
-# Default watermark settings (used if no DB entry exists)
 DEFAULT_SETTINGS = {
-    "text": "Telegram Guy!!",
-    "position": "top-right",
+    "text": "Sample Watermark",
+    "position": "center",
     "font_color": "white",
-    "font_size": 20,
-    "text_opacity": 100
+    "font_size": 24,
+    "text_opacity": 100,
+    "command": None
 }
 
 # Valid positions for watermark
@@ -22,7 +22,6 @@ POSITIONS = [
     ["center-left", "center", "center-right"],
     ["bottom-left", "bottom-center", "bottom-right"]
 ]
-
 @Client.on_message((filters.group | filters.private) & filters.command('set_caption'))
 async def add_caption(client, message):
 
@@ -188,18 +187,16 @@ async def see_metadata(client, message):
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Mᴇᴛᴀᴅᴀᴛᴀ Cᴏᴅᴇ**__")
 
 async def get_user_settings(db, user_id):
-    # Try to get from DB first
     settings = await db.get_watermark(user_id)
-    if settings is None:
+    if settings is None or isinstance(settings, str):  # Handle case where only command is stored
         settings = DEFAULT_SETTINGS.copy()
     return settings
 
 async def save_user_settings(db, user_id, settings):
-    # Save to MongoDB
     await db.set_watermark(user_id, watermark=settings)
 
 def build_watermark_command(settings):
-    return (f"drawtext=text='{settings['text']}':"
+    return (f"-vf drawtext=text='{settings['text']}':"
             f"fontcolor={settings['font_color']}:"
             f"fontsize={settings['font_size']}:"
             f"alpha={settings['text_opacity']/100:.2f}:"
@@ -228,7 +225,8 @@ def create_main_panel(settings):
             f"Position: {settings['position'].replace('-', ' ').title()}\n"
             f"Font Colour: {settings['font_color'].title()}\n"
             f"Font Size: {settings['font_size']}\n"
-            f"Text Opacity: {settings['text_opacity']}%")
+            f"Text Opacity: {settings['text_opacity']}%\n"
+            f"Command: {settings['COMMAND'] or 'Not set'}")
     
     buttons = [
         [
@@ -240,7 +238,7 @@ def create_main_panel(settings):
             InlineKeyboardButton("Size", callback_data="wm_size"),
             InlineKeyboardButton("Opacity", callback_data="wm_opacity")
         ],
-        [InlineKeyboardButton("Show Command", callback_data="wm_show")]
+        [InlineKeyboardButton("Show/Save Command", callback_data="wm_show")]
     ]
     
     return text, InlineKeyboardMarkup(buttons)
@@ -277,23 +275,31 @@ async def handle_callback(client, callback_query):
             "Send me a text to add Watermark\nTimeout: 30 seconds",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
-        
-        async def wait_for_text():
+        # Register a temporary handler for the next message
+        @Client.on_message(filters.text & filters.user(user_id))
+        async def handle_text_input(client, message):
             try:
-                response = await client.wait_for_message(
-                    user_id=user_id,
-                    timeout=30,
-                    filters=filters.text & filters.user(user_id)
-                )
-                settings['text'] = response.text[:50]  # Limit text length
+                settings['text'] = message.text[:50]  # Limit text length
                 await save_user_settings(db, user_id, settings)
                 text, markup = create_main_panel(settings)
                 await callback_query.message.edit(text, reply_markup=markup)
-            except asyncio.TimeoutError:
+            except Exception as e:
+                await message.reply(f"Error: {str(e)}")
+            finally:
+                # Remove the handler after processing
+                Client.remove_handler(handle_text_input)
+        
+        # Timeout mechanism
+        async def text_timeout():
+            await asyncio.sleep(30)
+            try:
                 text, markup = create_main_panel(settings)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                app.remove_handler(handle_text_input)
+            except:
+                pass
         
-        asyncio.create_task(wait_for_text())
+        asyncio.create_task(text_timeout())
         return
 
     if data == "wm_position":
@@ -314,23 +320,28 @@ async def handle_callback(client, callback_query):
             "Send me a color name (e.g., red, blue, white)\nTimeout: 30 seconds",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
-        
-        async def wait_for_color():
+        @Client.on_message(filters.text & filters.user(user_id))
+        async def handle_color_input(client, message):
             try:
-                response = await client.wait_for_message(
-                    user_id=user_id,
-                    timeout=30,
-                    filters=filters.text & filters.user(user_id)
-                )
-                settings['font_color'] = response.text.lower()
+                settings['font_color'] = message.text.lower()
                 await save_user_settings(db, user_id, settings)
                 text, markup = create_main_panel(settings)
                 await callback_query.message.edit(text, reply_markup=markup)
-            except asyncio.TimeoutError:
+            except Exception as e:
+                await message.reply(f"Error: {str(e)}")
+            finally:
+                Client.remove_handler(handle_color_input)
+        
+        async def color_timeout():
+            await asyncio.sleep(30)
+            try:
                 text, markup = create_main_panel(settings)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                Client.remove_handler(handle_color_input)
+            except:
+                pass
         
-        asyncio.create_task(wait_for_color())
+        asyncio.create_task(color_timeout())
         return
 
     if data == "wm_size":
@@ -338,57 +349,76 @@ async def handle_callback(client, callback_query):
             "Send me a font size (number between 10-100)\nTimeout: 30 seconds",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
-        
-        async def wait_for_size():
+        @Client.on_message(filters.text & filters.user(user_id))
+        async def handle_size_input(client, message):
             try:
-                response = await client.wait_for_message(
-                    user_id=user_id,
-                    timeout=30,
-                    filters=filters.text & filters.user(user_id)
-                )
-                size = int(response.text)
+                size = int(message.text)
                 if 10 <= size <= 100:
                     settings['font_size'] = size
                     await save_user_settings(db, user_id, settings)
-                text, markup = create_main_panel(settings)
-                await callback_query.message.edit(text, reply_markup=markup)
-            except (ValueError, asyncio.TimeoutError):
-                text, markup = create_main_panel(settings)
-                await callback_query.message.edit("Invalid or timeout! Back to main panel.", reply_markup=markup)
+                    text, markup = create_main_panel(settings)
+                    await callback_query.message.edit(text, reply_markup=markup)
+                else:
+                    await message.reply("Please send a number between 10 and 100.")
+            except ValueError:
+                await message.reply("Please send a valid number.")
+            except Exception as e:
+                await message.reply(f"Error: {str(e)}")
+            finally:
+                Client.remove_handler(handle_size_input)
         
-        asyncio.create_task(wait_for_size())
+        async def size_timeout():
+            await asyncio.sleep(30)
+            try:
+                text, markup = create_main_panel(settings)
+                await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                Client.remove_handler(handle_size_input)
+            except:
+                pass
+        
+        asyncio.create_task(size_timeout())
         return
 
     if data == "wm_opacity":
         await callback_query.message.edit(
             "Send me opacity (number between 0-100)\nTimeout: 30 seconds",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", thumb_up_alt 0-100)\nTimeout: 30 seconds",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
-        
-        async def wait_for_opacity():
+        @app.on_message(filters.text & filters.user(user_id))
+        async def handle_opacity_input(client, message):
             try:
-                response = await client.wait_for_message(
-                    user_id=user_id,
-                    timeout=30,
-                    filters=filters.text & filters.user(user_id)
-                )
-                opacity = int(response.text)
+                opacity = int(message.text)
                 if 0 <= opacity <= 100:
                     settings['text_opacity'] = opacity
                     await save_user_settings(db, user_id, settings)
-                text, markup = create_main_panel(settings)
-                await callback_query.message.edit(text, reply_markup=markup)
-            except (ValueError, asyncio.TimeoutError):
-                text, markup = create_main_panel(settings)
-                await callback_query.message.edit("Invalid or timeout! Back to main panel.", reply_markup=markup)
+                    text, markup = create_main_panel(settings)
+                    await callback_query.message.edit(text, reply_markup=markup)
+                else:
+                    await message.reply("Please send a number between 0 and 100.")
+            except ValueError:
+                await message.reply("Please send a valid number.")
+            except Exception as e:
+                await message.reply(f"Error: {str(e)}")
+            finally:
+                Client.remove_handler(handle_opacity_input)
         
-        asyncio.create_task(wait_for_opacity())
+        async def opacity_timeout():
+            await asyncio.sleep(30)
+            try:
+                text, markup = create_main_panel(settings)
+                await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                Client.remove_handler(handle_opacity_input)
+            except:
+                pass
+        
+        asyncio.create_task(opacity_timeout())
         return
 
     if data == "wm_show":
         Watermark = build_watermark_command(settings)
-        # Save the generated watermark command to MongoDB
-        await db.set_watermark(user_id, watermark=Watermark)
+        settings['command'] = Watermark
+        await save_user_settings(db, user_id, settings)
         await callback_query.message.edit(
             f"Watermark Command:\n`{Watermark}`\n\nSaved to database!",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
