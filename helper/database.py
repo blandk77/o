@@ -32,13 +32,6 @@ class Database:
         user = await self.col.find_one({'id': int(id)})
         return user.get('caption', None)
 
-    async def set_watermark(self, user_id, watermark):
-        await self.col.update_one({'id': int(user_id)}, {'$set': {'watermark': watermark}})
-
-    async def get_watermark(self, id):
-        user = await self.col.find_one({'id': int(id)})
-        return user.get('watermark', None)        
-
     async def set_thumbnail(self, user_id, thumbnail):
         await self.col.update_one({'id': int(user_id)}, {'$set': {'thumbnail': thumbnail}})
 
