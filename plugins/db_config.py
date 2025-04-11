@@ -238,7 +238,7 @@ def create_main_panel(settings):
             InlineKeyboardButton("Size", callback_data="wm_size"),
             InlineKeyboardButton("Opacity", callback_data="wm_opacity")
         ],
-        [InlineKeyboardButton("Show/Save Command", callback_data="wm_show")]
+        [InlineKeyboardButton("Create Command", callback_data="wm_show")]
     ]
     
     return text, InlineKeyboardMarkup(buttons)
@@ -382,7 +382,6 @@ async def handle_callback(client, callback_query):
     if data == "wm_opacity":
         await callback_query.message.edit(
             "Send me opacity (number between 0-100)\nTimeout: 30 seconds",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", thumb_up_alt 0-100)\nTimeout: 30 seconds",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
         @app.on_message(filters.text & filters.user(user_id))
