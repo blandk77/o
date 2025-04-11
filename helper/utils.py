@@ -227,8 +227,8 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
         )
         
         # Check if the user has a watermark set
-        watermark_text = await db.get_watermark(UID)
-        if watermark_text:
+        watermark = await db.get_watermark(UID)
+        if watermark:
             cmd = f"""ffmpeg -i "{dl}" {watermark} {ffmpegcode} "{Output_Path}" -y"""
         else:
             cmd = f"""ffmpeg -i "{dl}" {ffmpegcode} "{Output_Path}" -y"""
