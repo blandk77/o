@@ -226,12 +226,8 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
             ])
         )
         
-        # Check if the user has a watermark set
-        watermark = await db.get_watermark(UID)
-        if watermark:
-            cmd = f"""ffmpeg -i "{dl}" {watermark} {ffmpegcode} "{Output_Path}" -y"""
-        else:
-            cmd = f"""ffmpeg -i "{dl}" {ffmpegcode} "{Output_Path}" -y"""
+        
+        cmd = f"""ffmpeg -i "{dl}" {ffmpegcode} "{Output_Path}" -y"""
 
         process = await asyncio.create_subprocess_shell(
             cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
