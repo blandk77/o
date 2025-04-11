@@ -14,7 +14,7 @@ class Config(object):
    
     # database config
     DB_URL  = os.environ.get("DB_URL", "mongodb+srv://telegramguy21:tnkIwvbNkJ5U3fZ7@botsuse.bpgag.mongodb.net/?retryWrites=true&w=majority&appName=Botsuse")  # ⚠️ Required
-    DB_NAME  = os.environ.get("DB_NAME","SnowEncoderBot") 
+    DB_NAME  = os.environ.get("DB_NAME","SnowEnc") 
 
     # Other Configs 
     ADMIN = int(os.environ.get("ADMIN", "7465574522")) # ⚠️ Required
