@@ -196,8 +196,11 @@ def get_user_settings(user_id):
         user_settings[user_id] = DEFAULT_SETTINGS.copy()
     return user_settings[user_id]
 
+async def save_user_settings(db, user_id, settings):
+    await db.set_watermark(user_id, watermark=settings)
+                           
 def build_watermark_command(settings):
-    return (f"drawtext=text='{settings['text']}':"
+    return (f"-vf drawtext=text='{settings['text']}':"
             f"fontcolor={settings['font_color']}:"
             f"fontsize={settings['font_size']}:"
             f"alpha={settings['text_opacity']/100:.2f}:"
