@@ -196,16 +196,15 @@ def get_user_settings(user_id):
         user_settings[user_id] = DEFAULT_SETTINGS.copy()
     return user_settings[user_id]
 
-async def save_user_settings(db, user_id, settings):
-    await db.set_watermark(user_id, watermark=settings)
-                           
-def build_watermark_command(settings):
-    return (f"-vf drawtext=text='{settings['text']}':"
-            f"fontcolor={settings['font_color']}:"
-            f"fontsize={settings['font_size']}:"
-            f"alpha={settings['text_opacity']/100:.2f}:"
-            f"x={get_position_x(settings['position'])}:"
-            f"y={get_position_y(settings['position'])}")
+async def build_watermark_command(user_id, settings):
+    command = (f"-vf drawtext=text='{settings['text']}':"
+               f"fontcolor={settings['font_color']}:"
+               f"fontsize={settings['font_size']}:"
+               f"alpha={settings['text_opacity']/100:.2f}:"
+               f"x={get_position_x(settings['position'])}:"
+               f"y={get_position_y(settings['position'])}")
+    await db.set_watermark(user_id, watermark=settings)  
+    return command
 
 def get_position_x(position):
     if "left" in position:
@@ -390,7 +389,7 @@ async def handle_callback(client, callback_query):
         return
 
     if data == "wm_show":
-        command = build_watermark_command(settings)
+        command = await build_watermark_command(user_id, settings)  # Pass user_id
         await callback_query.message.edit(
             f"Watermark Command:\n`{command}`",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
