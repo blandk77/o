@@ -197,14 +197,15 @@ def get_user_settings(user_id):
     return user_settings[user_id]
 
 async def build_watermark_command(user_id, settings):
-    command = (f"-vf drawtext=text='{settings['text']}':"
+    command = (f"drawtext=text='{settings['text']}':"
                f"fontcolor={settings['font_color']}:"
                f"fontsize={settings['font_size']}:"
                f"alpha={settings['text_opacity']/100:.2f}:"
                f"x={get_position_x(settings['position'])}:"
                f"y={get_position_y(settings['position'])}")
-    await db.set_watermark(user_id, watermark=settings)  
-    return command
+    full_command = f'-vf "{command}"'
+    await db.set_watermark(user_id, watermark=full_command)
+    return full_command
 
 def get_position_x(position):
     if "left" in position:
