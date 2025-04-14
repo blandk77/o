@@ -253,13 +253,13 @@ def create_position_panel():
     buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
     return text, InlineKeyboardMarkup(buttons)
 
-@app.on_message(filters.command("Watermark"))
+@Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
     user_id = message.from_user.id
     text, markup = create_main_panel(user_id)
     await message.reply(text, reply_markup=markup)
 
-@app.on_callback_query(filters.regex("^wm_"))
+@Client.on_callback_query(filters.regex("^wm_"))
 async def handle_callback(client, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data
