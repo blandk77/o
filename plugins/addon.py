@@ -1,5 +1,5 @@
 from pyrogram import Client, filters, enums
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 from helper.database import db
 from helper.utils import CANT_CONFIG_GROUP_MSG
 from script import Txt
