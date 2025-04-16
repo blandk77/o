@@ -1,7 +1,7 @@
 from pyrogram import Client, __version__
 from pyrogram.raw.all import layer
 from config import Config
-import logging
+import logging, os, logging.config
 from datetime import datetime
 from pytz import timezone
 
