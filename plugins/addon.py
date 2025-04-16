@@ -9,7 +9,7 @@ user_settings = {}
 # Default settings template
 DEFAULT_SETTINGS = {
     "text": "Telegram Guy!!",
-    "position": "top right",
+    "position": "top-right",
     "font_color": "white",
     "font_size": 20,
     "text_opacity": 100
