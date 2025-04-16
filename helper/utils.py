@@ -271,12 +271,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                 caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
                 progress=progress_for_pyrogram,
                 progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time()))
-        
-        await bot.forward_messages(
-            Config.DUMP_CHANNEL, 
-            update.message.chat.id, 
-            sent_message.id
-        )
+
         if query.message.chat.type == enums.ChatType.SUPERGROUP:
             botusername = await bot.get_me()
             await ms.edit(f"Hey {query.from_user.mention},\n\nI Have Send Compressed File To Your Pm", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Bᴏᴛ Pᴍ", url=f'https://t.me/{botusername.username}')]]))
