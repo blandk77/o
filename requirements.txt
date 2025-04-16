@@ -10,3 +10,8 @@ pyromod
 psutil
 Pillow
 humanize
+Flask
+gunicorn
+Jinja2
+werkzeug
+itsdangerous
