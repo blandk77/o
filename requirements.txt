@@ -3,10 +3,8 @@ TgCrypto
 python-dotenv
 hachoir
 ffmpeg-python
-aiohttp
 motor
 pytz
-pyromod
 psutil
 Pillow
 humanize
