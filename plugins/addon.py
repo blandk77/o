@@ -1,7 +1,9 @@
 from pyrogram import Client, filters, enums
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from helper.database import db
 from helper.utils import CANT_CONFIG_GROUP_MSG
 from script import Txt
+import asyncio
 from asyncio.exceptions import TimeoutError
 
 user_settings = {}
@@ -21,6 +23,7 @@ POSITIONS = [
     ["center-left", "center", "center-right"],
     ["bottom-left", "bottom-center", "bottom-right"]
 ]
+
 def get_user_settings(user_id):
     if user_id not in user_settings:
         user_settings[user_id] = DEFAULT_SETTINGS.copy()
@@ -212,7 +215,7 @@ async def handle_callback(client, callback_query):
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
                     await callback_query.message.edit("Opacity must be between 0 and 100. Try again.")
-            except Value:
+            except ValueError:
                 await callback_query.message.edit("Invalid number. Please send a number (e.g., 50).")
         except TimeoutError:
             text, markup = create_main_panel(user_id)
@@ -220,15 +223,15 @@ async def handle_callback(client, callback_query):
         return
 
     if data == "wm_show":
-        command = await build_watermark_command(user_id, settings)  # Pass user_id
+        command = await build_watermark_command(user_id, settings)
         await callback_query.message.edit(
-            f"Yout Watermark Command:\n`{command}`\n\n📌**Use** __/Vwatermark__ **to see your current watermark detail**\n📌 **Use** __/Dwatermark__ **To delete your watermark and encode without watermark**",
+            f"Your Watermark Command:\n`{command}`\n\n📌**Use** __/Vwatermark__ **to see your current watermark detail**\n📌 **Use** __/Dwatermark__ **To delete your watermark and encode without watermark**",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
         )
         return
 
     await callback_query.answer()
-    
+
 @Client.on_message((filters.group | filters.private) & filters.command('Vwatermark'))
 async def view_wm(client, message):
     if not await db.is_user_exist(message.from_user.id):
@@ -236,19 +239,20 @@ async def view_wm(client, message):
         return
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
-
-    wm_code = await db.get_watermark(message.from_user.id)
+    user_id = message.from_user.id
+    settings = get_user_settings(user_id)
+    wm_code = await db.get_watermark(user_id)
 
     if wm_code:
         await SnowDev.edit(f"User Watermark Settings:\n"
-            f"Text: {settings['text']}\n"
-            f"Position: {settings['position'].replace('-', ' ').title()}\n"
-            f"Font Colour: {settings['font_color'].title()}\n"
-            f"Font Size: {settings['font_size']}\n"
-            f"Text Opacity: {settings['text_opacity']}%\n**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
+                           f"Text: {settings['text']}\n"
+                           f"Position: {settings['position'].replace('-', ' ').title()}\n"
+                           f"Font Colour: {settings['font_color'].title()}\n"
+                           f"Font Size: {settings['font_size']}\n"
+                           f"Text Opacity: {settings['text_opacity']}%\n"
+                           f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
     else:
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
-
 
 @Client.on_message((filters.group | filters.private) & filters.command('Dwatermark'))
 async def delete_wm(client, message):
