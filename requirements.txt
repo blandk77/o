@@ -4,6 +4,7 @@ python-dotenv
 hachoir
 ffmpeg-python
 motor
+cloudscraper
 pytz
 psutil
 Pillow
