@@ -65,8 +65,7 @@ async def Files_Option(bot:Client, message:Message):
     try:
         text = f"""**__What do you want me to do with this file.?__**\n\n**File Name** :- `{filename}`\n\n**File Size** :- `{filesize}`"""
 
-        buttons = [[InlineKeyboardButton("Rᴇɴᴀᴍᴇ 📝", callback_data=f"rename-{message.from_user.id}")],
-                   [InlineKeyboardButton("Cᴏᴍᴘʀᴇss 🗜️", callback_data=f"compress-{message.from_user.id}")]]
+        buttons = [[InlineKeyboardButton("Cᴏᴍᴘʀᴇss 🗜️", callback_data=f"compress-{message.from_user.id}")]]
         await SnowDev.edit(text=text, reply_markup=InlineKeyboardMarkup(buttons))
         
     except FloodWait as e:
@@ -76,8 +75,7 @@ async def Files_Option(bot:Client, message:Message):
         await floodmsg.delete()
 
         text = f"""**__What do you want me to do with this file.?__**\n\n**File Name** :- `{filename}`\n\n**File Size** :- `{filesize}`"""
-        buttons = [[InlineKeyboardButton("Rᴇɴᴀᴍᴇ 📝", callback_data=f"rename-{message.from_user.id}")],
-                   [InlineKeyboardButton("Cᴏᴍᴘʀᴇss 🗜️", callback_data=f"compress-{message.from_user.id}")]]
+        buttons = [[InlineKeyboardButton("Cᴏᴍᴘʀᴇss 🗜️", callback_data=f"compress-{message.from_user.id}")]]
         await SnowDev.edit(text=text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except Exception as e:
@@ -89,10 +87,8 @@ async def cancel_process(bot:Client, message:Message):
     try:
         shutil.rmtree(f"encode/{message.from_user.id}")
         shutil.rmtree(f"ffmpeg/{message.from_user.id}")
-        shutil.rmtree(f"Renames/{message.from_user.id}")
-        shutil.rmtree(f"Metadata/{message.from_user.id}")
         shutil.rmtree(f"Screenshot_Generation/{message.from_user.id}")
         
-        return await message.reply_text(text="**Canceled All On Going Processes ✅**")
+        await message.reply_text(text="**Canceled All On Going Processes ✅**")
     except BaseException:
         pass
