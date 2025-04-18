@@ -17,7 +17,6 @@ class Database:
             caption=None,
             thumbnail=None,
             ffmpegcode=None,
-            metadata=None,
             ban_status=dict(
                 is_banned=False,
                 ban_duration=0,
@@ -56,14 +55,6 @@ class Database:
     async def get_ffmpegcode(self, id):
         user = await self.col.find_one({'id': int(id)})
         return user.get('ffmpegcode', None)
-    
-
-    async def set_metadata(self, user_id, metadata):
-        await self.col.update_one({'id': int(user_id)}, {'$set': {'metadata': metadata}})
-
-    async def get_metadata(self, id):
-        user = await self.col.find_one({'id': int(id)})
-        return user.get('metadata', None)
 
     async def add_user(self, b, m):
         u = m.from_user
@@ -72,7 +63,6 @@ class Database:
             await self.col.insert_one(user)
             await send_log(b, u)
            
-
     async def is_user_exist(self, id):
         user = await self.col.find_one({'id': int(id)})
         return bool(user)
