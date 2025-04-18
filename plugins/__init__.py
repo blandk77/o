@@ -9,7 +9,7 @@ from cloudscraper import create_scraper
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config, COLLECTION_NAME, VERIFY_EXPIRE, SHORTLINK_API, SHORTLINK_SITE, PREMIUM_USERS
 
-DATABASE_URL = Config.DB_URI
+DATABASE_URL = Config.DB_URL
 
 verify_dict = {}
 missing=[v for v in ["COLLECTION_NAME", "SHORTLINK_SITE", "SHORTLINK_API"] if not v]; sys.exit(f"Missing: {', '.join(missing)}") if missing else None
