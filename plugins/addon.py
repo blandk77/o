@@ -94,6 +94,20 @@ def create_position_panel():
     buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
     return text, InlineKeyboardMarkup(buttons)
 
+@Client.on_message((filters.group | filters.private) & filters.command('set_wm'))
+async def set_watermark(client, message):
+    if not await db.is_user_exist(message.from_user.id):
+        await CANT_CONFIG_GROUP_MSG(client, message)
+        return
+
+    if len(message.command) == 1:
+        return await message.reply_text("**__Gɪᴠᴇ Tʜᴇ Wᴀᴛᴇʀᴍᴀʀᴋ Tᴇxᴛ__\n\nExᴀᴍᴩʟᴇ:- ")
+
+    SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
+    watermark_text = message.text.split(" ", 1)[1]
+    await db.set_watermark(message.from_user.id, watermark=Watermark)
+    await message.reply_text("__**✅ Wᴀᴛᴇʀᴍᴀʀᴋ Sᴀᴠᴇᴅ**__")
+
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
     user_id = message.from_user.id
