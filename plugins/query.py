@@ -8,6 +8,7 @@ from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMa
 from helper.utils import Compress_Stats, skip, CompressVideo
 from helper.database import db
 from script import Txt
+from config import Config
 
 
 @Client.on_callback_query()
@@ -26,8 +27,8 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
         btn = [
             [InlineKeyboardButton(text='❗ Hᴇʟᴘ', callback_data='help'), InlineKeyboardButton(
                 text='🌨️ Aʙᴏᴜᴛ', callback_data='about')],
-            [InlineKeyboardButton(text='📢 Uᴘᴅᴀᴛᴇs', url='https://t.me/AIORFT'), InlineKeyboardButton
-                (text='💻 Dᴇᴠᴇʟᴏᴘᴇʀ', url='https://t.me/Snowball_Official')]
+            [InlineKeyboardButton(text='📢 Uᴘᴅᴀᴛᴇs', url=f'https://t.me/{DEV_BTN}'), InlineKeyboardButton
+                (text='💻 Dᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://t.me/{Config.UPDATES_BTN}')]
         ]
         await query.message.edit(text=Txt.PRIVATE_START_MSG.format(query.from_user.mention), reply_markup=InlineKeyboardMarkup(btn))
 
@@ -36,7 +37,7 @@ async def Cb_Handle(bot: Client, query: CallbackQuery):
             [InlineKeyboardButton(text='⟸ Bᴀᴄᴋ', callback_data='home')]
         ]
         botuser = await bot.get_me()
-        await query.message.edit(Txt.ABOUT_TXT.format(botuser.username), reply_markup=InlineKeyboardMarkup(BUTN), disable_web_page_preview=True)
+        await query.message.edit(Txt.ABOUT_TXT.format(botuser.username,Config.UPDATES_BTN), reply_markup=InlineKeyboardMarkup(BUTN), disable_web_page_preview=True)
 
     if data.startswith('stats'):
 
