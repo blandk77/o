@@ -22,6 +22,7 @@ class Config(object):
     DUMP_CHANNEL = int(os.environ.get('DUMP_CHANNEL', '-1002288135729'))
     BOT_UPTIME = BOT_UPTIME  = time.time()
     START_PIC = os.environ.get("START_PIC", "https://graph.org/file/15e82d7e665eccc8bd9c5.jpg")
+    OWNER_STRING = os.environ.get("OWNER_STRING", "")
 
     # wes response configuration     
     WEBHOOK = bool(os.environ.get("WEBHOOK", True))
