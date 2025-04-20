@@ -14,6 +14,7 @@ from config import Config
 from script import Txt
 from pyrogram import enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto
+from pyrogram import Client
 from .database import Database
 
 QUEUE = []
@@ -122,7 +123,7 @@ async def CANT_CONFIG_GROUP_MSG(client, message):
     btn = [
         [InlineKeyboardButton(text='Bᴏᴛ Pᴍ', url=f'https://t.me/{botusername.username}')]
     ]
-    ms = await message.reply_text(text="Sᴏʀʀʏ Yᴏᴜ Cᴀɴ'ᴛ Cᴏɴғɪɢ Yᴏᴜʀ Sᴇᴛᴛɪɴɢs\n\nFɪʀsᴛ sᴛᴀʀᴛ ᴍᴇ ɪɴ ᴘʀɪᴠᴀᴛᴇ ᴛʜᴇɴ ʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴍʏ ғᴇᴀᴛᴜᴇʀs ɪɴ ɢʀᴏᴜᴘ", reply_to_message_id = message.id, reply_markup=InlineKeyboardMarkup(btn))
+    ms = await message.reply_text(text="Sᴏʀʀʏ Yᴏᴜ Cᴀɴ'ᴛ Cᴏɴғɪɢ Yᴏᴜʀ Sᴇᴛᴛɪɴɢs\n\nFɪʀsᴛ sᴛᴀʀᴛ ᴍᴇ ɪɴ ᴘʀɪᴠᴀᴛᴇ ᴛʜᴇɴ ʏᴏᴜ ᴄᴀɴ ᴜsᴇ ᴍʏ ғᴇᴀᴛᴜʀᴇs ɪɴ ɢʀᴏᴜᴘ", reply_to_message_id = message.id, reply_markup=InlineKeyboardMarkup(btn))
     await asyncio.sleep(10)
     await ms.delete()
 
@@ -165,6 +166,28 @@ async def skip(e, userid):
         pass
     return
 
+async def split_file(file_path, max_size):
+    """Split a file into parts smaller than max_size (in bytes)."""
+    file_size = os.path.getsize(file_path)
+    if file_size <= max_size:
+        return [file_path]
+
+    part_size = max_size
+    base_name = file_path.rsplit('.', 1)[0]
+    ext = file_path.rsplit('.', 1)[1] if '.' in file_path else ''
+    part_files = []
+
+    # Use split command to divide the file
+    prefix = f"{base_name}_part_"
+    os.system(f'split -b {part_size} "{file_path}" "{prefix}"')
+    
+    # Collect part files
+    for part in sorted(os.listdir(os.path.dirname(file_path))):
+        if part.startswith(os.path.basename(prefix)):
+            part_files.append(os.path.join(os.path.dirname(file_path), part))
+    
+    return part_files
+
 async def CompressVideo(bot, query, ffmpegcode, c_thumb):
     UID = query.from_user.id
     ms = await query.message.edit('Pʟᴇᴀsᴇ Wᴀɪᴛ...\n\n**Fᴇᴛᴄʜɪɴɢ Qᴜᴇᴜᴇ 👥**')
@@ -188,7 +211,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                     message=file,
                     file_name=File_Path,
                     progress=progress_for_pyrogram,
-                    progress_args=("\n⚠️__**Please wait...**__\n\n☃️ **Dᴏᴡɴʟᴏᴀᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
+                    progress_args=("\n⚠️__**Please wait...**__\n☃️ **Dᴏᴡɴʟᴏᴀᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
                 )
         except Exception as e:
             return await ms.edit(str(e))
@@ -229,22 +252,48 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
         x = dtime
         xx = ts(int((ees - es).seconds) * 1000)
         xxx = ts(int((eees - ees).seconds) * 1000)
+
+        # Check file size against UPLOAD_LIMIT
+        if com > bot.UPLOAD_LIMIT and bot.UPLOAD_LIMIT == 2 * 1024 * 1024 * 1024:
+            # Non-premium: Split the file
+            await ms.edit("⚠️__**Please wait...**__\n**Splitting file for non-premium upload...**")
+            part_files = await split_file(Output_Path, 2 * 1024 * 1024 * 1024)  # Split into 2GB parts
+        else:
+            # Premium or file within limit: No splitting
+            part_files = [Output_Path]
+
         await ms.edit("⚠️__**Please wait...**__\n**Tʀyɪɴɢ Tᴏ Uᴩʟᴏᴀᴅɪɴɢ....**")
-        await bot.send_document(
-                UID,
-                document=Output_Path,
-                thumb=ph_path,
-                caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
-                progress=progress_for_pyrogram,
-                progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time()))
-        if Config.DUMP_CHANNEL is not None:
-            await bot.send_document(
-                Config.DUMP_CHANNEL,
-                document=Output_Path,
-                thumb=ph_path,
-                caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
-                progress=progress_for_pyrogram,
-                progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time()))
+        
+        # Upload using OWNER_STRING session if available
+        upload_client = bot
+        if Config.OWNER_STRING:
+            upload_client = Client("upload_session", session_string=Config.OWNER_STRING)
+            await upload_client.start()
+
+        try:
+            # Upload each part
+            for part in part_files:
+                await upload_client.send_document(
+                    UID,
+                    document=part,
+                    thumb=ph_path,
+                    caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
+                    progress=progress_for_pyrogram,
+                    progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
+                )
+                if Config.DUMP_CHANNEL is not None:
+                    await upload_client.send_document(
+                        Config.DUMP_CHANNEL,
+                        document=part,
+                        thumb=ph_path,
+                        caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
+                        progress=progress_for_pyrogram,
+                        progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
+                    )
+        finally:
+            if Config.OWNER_STRING:
+                await upload_client.stop()
+
         if query.message.chat.type == enums.ChatType.SUPERGROUP:
             botusername = await bot.get_me()
             await ms.edit(f"Hey {query.from_user.mention},\n\nI Have Send Compressed File To Your Pm", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(text="Bᴏᴛ Pᴍ", url=f'https://t.me/{botusername.username}')]]))
@@ -254,8 +303,11 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
             shutil.rmtree(f"ffmpeg/{UID}")
             shutil.rmtree(f"encode/{UID}")
             os.remove(ph_path)
+            # Clean up split parts
+            for part in part_files:
+                if part != Output_Path:  # Don't remove original if it's not split
+                    os.remove(part)
         except BaseException:
-            os.remove(f"ffmpeg/{UID}")
-            os.remove(f"ffmpeg/{UID}")
+            pass
     except Exception as e:
         print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
