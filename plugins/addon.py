@@ -5,7 +5,7 @@ from helper.utils import CANT_CONFIG_GROUP_MSG
 from script import Txt
 import asyncio
 from asyncio.exceptions import TimeoutError
-import logging  # Added for debugging
+import logging
 
 # Set up logging for debugging (optional)
 logging.basicConfig(level=logging.INFO)
@@ -78,7 +78,8 @@ def create_main_panel(user_id):
         ],
         [
             InlineKeyboardButton("Size", callback_data="wm_size"),
-            InlineKeyboardButton("Opacity", callback_data="wm_opacity")
+            InlineKeyboardButton("Opacity", callback_data="wm_opacity"),
+            InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")  # NEW: Added Full Command button
         ],
         [InlineKeyboardButton("Show Command", callback_data="wm_show")]
     ]
@@ -94,19 +95,6 @@ def create_position_panel():
     buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
     return text, InlineKeyboardMarkup(buttons)
 
-@Client.on_message((filters.group | filters.private) & filters.command('set_wm'))
-async def set_watermark(client, message):
-    if not await db.is_user_exist(message.from_user.id):
-        await CANT_CONFIG_GROUP_MSG(client, message)
-        return
-
-    if len(message.command) == 1:
-        return await message.reply_text("**__Gɪᴠᴇ Tʜᴇ Wᴀᴛᴇʀᴍᴀʀᴋ Tᴇxᴛ__\n\nExᴀᴍᴩʟᴇ:- ")
-
-    SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
-    watermark_text = message.text.split(" ", 1)[1]
-    await db.set_watermark(message.from_user.id, watermark=Watermark)
-    await message.reply_text("__**✅ Wᴀᴛᴇʀᴍᴀʀᴋ Sᴀᴠᴇᴅ**__")
 
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
@@ -182,7 +170,6 @@ async def handle_callback(client, callback_query):
                     timeout=30
                 )
                 color = response.text.strip().lower()
-                # Optional: Add color validation if needed
                 settings['font_color'] = color
                 await callback_query.message.edit(f"Color set to: {color}")
                 await asyncio.sleep(1)  # Brief delay for better UX
@@ -251,6 +238,34 @@ async def handle_callback(client, callback_query):
                 except ValueError:
                     await callback_query.message.edit("Invalid number. Please send a number (e.g., 50).")
                     await callback_query.answer()
+            except TimeoutError:
+                text, markup = create_main_panel(user_id)
+                await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                await callback_query.answer()
+            return
+
+        
+        if data == "wm_full_command":
+            await callback_query.message.edit(
+                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10")\nTimeout: 30 seconds',
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
+            )
+            try:
+                response = await callback_query.message.chat.ask(
+                    "Waiting for your watermark command input...",
+                    filters=filters.text,
+                    timeout=30
+                )
+                command = response.text.strip()
+                if command.startswith('-vf "drawtext=') and command.endswith('"'):
+                    await db.set_watermark(user_id, watermark=command)
+                    await callback_query.message.edit(f"Watermark command set to: {command}")
+                    await asyncio.sleep(1)
+                    text, markup = create_main_panel(user_id)
+                    await callback_query.message.edit(text, reply_markup=markup)
+                else:
+                    await callback_query.message.edit("Invalid command format. Must start with -vf and contain drawtext.")
+                await callback_query.answer()
             except TimeoutError:
                 text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
