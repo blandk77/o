@@ -23,7 +23,7 @@ async def Handle_StartMsg(bot:Client, msg:Message):
         botusername = await bot.get_me()
         btn = [
             [InlineKeyboardButton(text='⚡ BOT PM', url=f'https://t.me/{botusername.username}')],
-            [InlineKeyboardButton(text='💻 Dᴇᴠᴇʟᴏᴘᴇʀ', url='https://t.me/Snowball_Official')]
+            [InlineKeyboardButton(text='📢 Uᴘᴅᴀᴛᴇs', url=f'https://t.me/{Config.UPDATES_BTN}')]
         ]
 
         await Snowdev.edit(text=Txt.GROUP_START_MSG.format(msg.from_user.mention), reply_markup=InlineKeyboardMarkup(btn))
@@ -31,7 +31,7 @@ async def Handle_StartMsg(bot:Client, msg:Message):
     else:
         btn = [
             [InlineKeyboardButton(text='❗ Hᴇʟᴘ', callback_data='help'), InlineKeyboardButton(text='🌨️ Aʙᴏᴜᴛ', callback_data='about')],
-            [InlineKeyboardButton(text='📢 Uᴘᴅᴀᴛᴇs', url='https://t.me/AIORFT'), InlineKeyboardButton(text='💻 Dᴇᴠᴇʟᴏᴘᴇʀ', url='https://t.me/Snowball_Official')]
+            [InlineKeyboardButton(text='📢 Uᴘᴅᴀᴛᴇs', url=f'https://t.me/{Config.UPDATES_BTN}'), InlineKeyboardButton(text='💻 Dᴇᴠᴇʟᴏᴘᴇʀ', url=f'https://t.me/{Config.DEV_BTN}')]
         ]
 
         if Config.START_PIC:
