@@ -23,6 +23,8 @@ class Config(object):
     BOT_UPTIME = BOT_UPTIME  = time.time()
     START_PIC = os.environ.get("START_PIC", "https://graph.org/file/15e82d7e665eccc8bd9c5.jpg")
     OWNER_STRING = os.environ.get("OWNER_STRING", "")
+    UPDATES_BTN = os.environ.get("UPDATES_BTN", "BIDHAANBOTS") 
+    DEV_BTN = os.environ.get("DEV_BTN", "BIG_FiiSH")
 
     # wes response configuration     
     WEBHOOK = bool(os.environ.get("WEBHOOK", True))
