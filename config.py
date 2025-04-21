@@ -40,7 +40,19 @@ class Config(object):
 
 
     caption = """
-{0}
+🚀 **File Successfully Processed!** 🌟
+
+📂 **File Name:** `{}` 📝✨
+📏 **Original Size:** `{}` 📦📏
+🗜 **Encoded Size:** `{}` 🔐💾
+📉 **Compression:** `{}` 📊🔽
+
+⏬ **Downloaded in:** `{}` ⏳📥
+⚙️ **Encoded in:** `{}` ⚡🎛
+☁️ **Uploaded in:** `{}` 🚀📤
+
+🔥 **Your file is compressed, optimized, and ready to go!** 😎✨
+
 """
 
 #Token Verification 
