@@ -286,9 +286,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                         Config.DUMP_CHANNEL,
                         document=part,
                         thumb=ph_path,
-                        caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
-                        progress=progress_for_pyrogram,
-                        progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
+                        caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx)
                     )
         finally:
             if Config.OWNER_STRING:
