@@ -48,7 +48,17 @@ class Database:
 
     async def delete_watermark(self, user_id):
         await self.col.update_one({'id': int(user_id)}, {'$unset': {'watermark': ""}})
-        
+
+    async def set_logo_url(self, user_id, logo_url):
+        await self.col.update_one({'id': int(user_id)}, {'$set': {'logo_url': logo_url}})
+
+    async def get_logo_url(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('logo_url', None)
+
+    async def delete_logo_url(self, user_id):
+        await self.col.update_one({'id': int(user_id)}, {'$unset': {'logo_url': ""}})
+    
     async def set_ffmpegcode(self, user_id, ffmpegcode):
         await self.col.update_one({'id': int(user_id)}, {'$set': {'ffmpegcode': ffmpegcode}})
 
