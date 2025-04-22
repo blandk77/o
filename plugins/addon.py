@@ -6,7 +6,7 @@ from script import Txt
 import asyncio
 from asyncio.exceptions import TimeoutError
 import logging
-import re  # NEW: For URL validation
+import re
 
 # Set up logging for debugging
 logging.basicConfig(level=logging.INFO)
@@ -36,12 +36,12 @@ def get_user_settings(user_id):
     return user_settings[user_id]
 
 async def build_watermark_command(user_id, settings):
-    # NEW: Check if a custom command is set
+    # Check if a custom command is set
     custom_command = await db.get_watermark(user_id)
     if custom_command:
         return custom_command  # Return custom command if set
 
-    # NEW: Check if logo URL is set
+    # Check if logo URL is set
     logo_url = await db.get_logo_url(user_id)
     if logo_url:
         # Logo + Text command
@@ -91,7 +91,7 @@ def get_position_y(position):
     else:
         return "(h-th)/2"
 
-def create_main_panel(user_id):
+async def create_main_panel(user_id):  # MODIFIED: Made async
     settings = get_user_settings(user_id)
     text = (
         f"User Watermark Settings:\n"
@@ -101,13 +101,13 @@ def create_main_panel(user_id):
         f"Font Size: {settings['font_size']}\n"
         f"Text Opacity: {settings['text_opacity']}%\n"
     )
-    # NEW: Show logo status
-    logo_url = asyncio.get_event_loop().run_until_complete(db.get_logo_url(user_id))
+    # Show logo status
+    logo_url = await db.get_logo_url(user_id)  # MODIFIED: Awaited
     text += f"Logo: {'Set' if logo_url else 'Not Set'}\n"
 
-    # NEW: Disable settings if custom command is set
-    custom_command = asyncio.get_event_loop().run_until_complete(db.get_watermark(user_id))
-    if custom_command and custom_command.startswith('-vf "drawtext=') or custom_command.startswith('-i '):
+    # Disable settings if custom command is set
+    custom_command = await db.get_watermark(user_id)  # MODIFIED: Awaited
+    if custom_command:
         text += "\n⚠️ Custom command is set. Manual settings are disabled."
         buttons = [
             [InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")],
@@ -123,7 +123,7 @@ def create_main_panel(user_id):
             [
                 InlineKeyboardButton("Size", callback_data="wm_size"),
                 InlineKeyboardButton("Opacity", callback_data="wm_opacity"),
-                InlineKeyboardButton("Logo", callback_data="wm_logo")  # NEW: Logo button
+                InlineKeyboardButton("Logo", callback_data="wm_logo")
             ],
             [
                 InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command"),
@@ -145,7 +145,7 @@ def create_position_panel():
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
     user_id = message.from_user.id
-    text, markup = create_main_panel(user_id)
+    text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
     await message.reply(text, reply_markup=markup)
 
 @Client.on_callback_query(filters.regex("^wm_"))
@@ -157,9 +157,9 @@ async def handle_callback(client, callback_query):
     try:
         logger.info(f"Received callback from user {user_id}: {data}")
 
-        # NEW: Check if custom command is set to disable manual settings
+        # Check if custom command is set to disable manual settings
         custom_command = await db.get_watermark(user_id)
-        if custom_command and data in ["wm_text", "wm_position", "wm_color", "wm_size", "wm_opacity", "wm_logo", "wm_pos_"]:
+        if custom_command and data in ["wm_text", "wm_position", "wm_color", "wm_size", "wm_opacity", "wm_logo"] or data.startswith("wm_pos_"):
             await callback_query.message.edit(
                 "⚠️ Custom command is set. Manual settings are disabled.\nUse 'Custom Full Command' to update or /Dwatermark to reset.",
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
@@ -168,7 +168,7 @@ async def handle_callback(client, callback_query):
             return
 
         if data == "wm_back":
-            text, markup = create_main_panel(user_id)
+            text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
             await callback_query.message.edit(text, reply_markup=markup)
             await callback_query.answer()
             return
@@ -189,13 +189,13 @@ async def handle_callback(client, callback_query):
                     settings['text'] = text
                     await callback_query.message.edit(f"Text set to: {text}")
                     await asyncio.sleep(1)
-                    text, markup = create_main_panel(user_id)
+                    text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
                     await callback_query.message.edit("Text cannot be empty. Try again.")
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -209,7 +209,7 @@ async def handle_callback(client, callback_query):
         if data.startswith("wm_pos_"):
             position = data[7:]
             settings['position'] = position
-            text, markup = create_main_panel(user_id)
+            text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
             await callback_query.message.edit(text, reply_markup=markup)
             await callback_query.answer()
             return
@@ -229,11 +229,11 @@ async def handle_callback(client, callback_query):
                 settings['font_color'] = color
                 await callback_query.message.edit(f"Color set to: {color}")
                 await asyncio.sleep(1)
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit(text, reply_markup=markup)
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -255,7 +255,7 @@ async def handle_callback(client, callback_query):
                         settings['font_size'] = size
                         await callback_query.message.edit(f"Font size set to: {size}")
                         await asyncio.sleep(1)
-                        text, markup = create_main_panel(user_id)
+                        text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
                         await callback_query.message.edit("Font size must be between 10 and 100. Try again.")
@@ -264,7 +264,7 @@ async def handle_callback(client, callback_query):
                     await callback_query.message.edit("Invalid number. Please send a number (e.g., 20).")
                     await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -286,7 +286,7 @@ async def handle_callback(client, callback_query):
                         settings['text_opacity'] = opacity
                         await callback_query.message.edit(f"Opacity set to: {opacity}%")
                         await asyncio.sleep(1)
-                        text, markup = create_main_panel(user_id)
+                        text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
                         await callback_query.message.edit("Opacity must be between 0 and 100. Try again.")
@@ -295,12 +295,11 @@ async def handle_callback(client, callback_query):
                     await callback_query.message.edit("Invalid number. Please send a number (e.g., 50).")
                     await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
 
-        # NEW: Logo callback
         if data == "wm_logo":
             await callback_query.message.edit(
                 "Send me a PNG logo URL (e.g., https://example.com/logo.png)\nMust start with 'https' and end with '.png'\nTimeout: 30 seconds",
@@ -317,13 +316,13 @@ async def handle_callback(client, callback_query):
                     await db.set_logo_url(user_id, url)
                     await callback_query.message.edit(f"Logo URL set to: {url}")
                     await asyncio.sleep(1)
-                    text, markup = create_main_panel(user_id)
+                    text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
                     await callback_query.message.edit("Invalid URL. Must start with 'https' and end with '.png'. Try again.")
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -340,18 +339,17 @@ async def handle_callback(client, callback_query):
                     timeout=30
                 )
                 command = response.text.strip()
-                # MODIFIED: Removed strict validation
                 if command:
                     await db.set_watermark(user_id, watermark=command)
                     await callback_query.message.edit(f"Watermark command set to: {command}")
                     await asyncio.sleep(1)
-                    text, markup = create_main_panel(user_id)
+                    text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
                     await callback_query.message.edit("Command cannot be empty. Try again.")
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = create_main_panel(user_id)
+                text, markup = await create_main_panel(user_id)  # MODIFIED: Awaited
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -384,7 +382,6 @@ async def view_wm(client, message):
     wm_code = await db.get_watermark(user_id)
 
     if wm_code:
-        # MODIFIED: Show custom command if set, otherwise show settings
         if wm_code.startswith('-vf "drawtext=') or wm_code.startswith('-i '):
             await SnowDev.edit(
                 f"Custom Watermark Command:\n`{wm_code}`\n\n"
@@ -414,9 +411,7 @@ async def delete_wm(client, message):
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
     user_id = message.from_user.id
-    # MODIFIED: Delete both watermark and logo_url
     await db.set_watermark(user_id, watermark=None)
     await db.delete_logo_url(user_id)
-    # Reset in-memory settings
     user_settings[user_id] = DEFAULT_SETTINGS.copy()
     await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
