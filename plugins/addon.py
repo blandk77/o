@@ -6,8 +6,9 @@ from script import Txt
 import asyncio
 from asyncio.exceptions import TimeoutError
 import logging
+import re  # NEW: For URL validation
 
-# Set up logging for debugging (optional)
+# Set up logging for debugging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,42 @@ def get_user_settings(user_id):
     return user_settings[user_id]
 
 async def build_watermark_command(user_id, settings):
-    command = (f"drawtext=text='{settings['text']}':"
-               f"fontcolor={settings['font_color']}:"
-               f"fontsize={settings['font_size']}:"
-               f"alpha={settings['text_opacity']/100:.2f}:"
-               f"x={get_position_x(settings['position'])}:"
-               f"y={get_position_y(settings['position'])}")
-    full_command = f'-vf "{command}"'
+    # NEW: Check if a custom command is set
+    custom_command = await db.get_watermark(user_id)
+    if custom_command:
+        return custom_command  # Return custom command if set
+
+    # NEW: Check if logo URL is set
+    logo_url = await db.get_logo_url(user_id)
+    if logo_url:
+        # Logo + Text command
+        logo_x = get_position_x(settings['position'])
+        logo_y = get_position_y(settings['position'])
+        text_x = f"({logo_x}+40)"  # Offset text by 40 pixels to the right
+        text_y = logo_y  # Same y-coordinate as logo
+        command = (
+            f"[1:v]scale=-1:{settings['font_size']}[logo];"
+            f"[0:v][logo]overlay={logo_x}:{logo_y}[v1];"
+            f"[v1]drawtext=text='{settings['text']}':"
+            f"fontcolor={settings['font_color']}:"
+            f"fontsize={settings['font_size']}:"
+            f"alpha={settings['text_opacity']/100:.2f}:"
+            f"x={text_x}:"
+            f"y={text_y}[v]"
+        )
+        full_command = f'-i {logo_url} -filter_complex "{command}" -map "[v]"'
+    else:
+        # Text-only command
+        command = (
+            f"drawtext=text='{settings['text']}':"
+            f"fontcolor={settings['font_color']}:"
+            f"fontsize={settings['font_size']}:"
+            f"alpha={settings['text_opacity']/100:.2f}:"
+            f"x={get_position_x(settings['position'])}:"
+            f"y={get_position_y(settings['position'])}"
+        )
+        full_command = f'-vf "{command}"'
+
     await db.set_watermark(user_id, watermark=full_command)
     return full_command
 
@@ -63,27 +93,44 @@ def get_position_y(position):
 
 def create_main_panel(user_id):
     settings = get_user_settings(user_id)
-    text = (f"User Watermark Settings:\n"
-            f"Text: {settings['text']}\n"
-            f"Position: {settings['position'].replace('-', ' ').title()}\n"
-            f"Font Colour: {settings['font_color'].title()}\n"
-            f"Font Size: {settings['font_size']}\n"
-            f"Text Opacity: {settings['text_opacity']}%")
-    
-    buttons = [
-        [
-            InlineKeyboardButton("Text", callback_data="wm_text"),
-            InlineKeyboardButton("Position", callback_data="wm_position"),
-            InlineKeyboardButton("Colour", callback_data="wm_color")
-        ],
-        [
-            InlineKeyboardButton("Size", callback_data="wm_size"),
-            InlineKeyboardButton("Opacity", callback_data="wm_opacity"),
-            InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")  # NEW: Added Full Command button
-        ],
-        [InlineKeyboardButton("Show Command", callback_data="wm_show")]
-    ]
-    
+    text = (
+        f"User Watermark Settings:\n"
+        f"Text: {settings['text']}\n"
+        f"Position: {settings['position'].replace('-', ' ').title()}\n"
+        f"Font Colour: {settings['font_color'].title()}\n"
+        f"Font Size: {settings['font_size']}\n"
+        f"Text Opacity: {settings['text_opacity']}%\n"
+    )
+    # NEW: Show logo status
+    logo_url = asyncio.get_event_loop().run_until_complete(db.get_logo_url(user_id))
+    text += f"Logo: {'Set' if logo_url else 'Not Set'}\n"
+
+    # NEW: Disable settings if custom command is set
+    custom_command = asyncio.get_event_loop().run_until_complete(db.get_watermark(user_id))
+    if custom_command and custom_command.startswith('-vf "drawtext=') or custom_command.startswith('-i '):
+        text += "\n⚠️ Custom command is set. Manual settings are disabled."
+        buttons = [
+            [InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")],
+            [InlineKeyboardButton("Show Command", callback_data="wm_show")]
+        ]
+    else:
+        buttons = [
+            [
+                InlineKeyboardButton("Text", callback_data="wm_text"),
+                InlineKeyboardButton("Position", callback_data="wm_position"),
+                InlineKeyboardButton("Colour", callback_data="wm_color")
+            ],
+            [
+                InlineKeyboardButton("Size", callback_data="wm_size"),
+                InlineKeyboardButton("Opacity", callback_data="wm_opacity"),
+                InlineKeyboardButton("Logo", callback_data="wm_logo")  # NEW: Logo button
+            ],
+            [
+                InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command"),
+                InlineKeyboardButton("Show Command", callback_data="wm_show")
+            ]
+        ]
+
     return text, InlineKeyboardMarkup(buttons)
 
 def create_position_panel():
@@ -94,7 +141,6 @@ def create_position_panel():
     ]
     buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
     return text, InlineKeyboardMarkup(buttons)
-
 
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
@@ -109,7 +155,17 @@ async def handle_callback(client, callback_query):
     settings = get_user_settings(user_id)
 
     try:
-        logger.info(f"Received callback from user {user_id}: {data}")  # Debug log
+        logger.info(f"Received callback from user {user_id}: {data}")
+
+        # NEW: Check if custom command is set to disable manual settings
+        custom_command = await db.get_watermark(user_id)
+        if custom_command and data in ["wm_text", "wm_position", "wm_color", "wm_size", "wm_opacity", "wm_logo", "wm_pos_"]:
+            await callback_query.message.edit(
+                "⚠️ Custom command is set. Manual settings are disabled.\nUse 'Custom Full Command' to update or /Dwatermark to reset.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
+            )
+            await callback_query.answer()
+            return
 
         if data == "wm_back":
             text, markup = create_main_panel(user_id)
@@ -128,11 +184,11 @@ async def handle_callback(client, callback_query):
                     filters=filters.text,
                     timeout=30
                 )
-                text = response.text[:50].strip()  # Limit text length
+                text = response.text[:50].strip()
                 if text:
                     settings['text'] = text
                     await callback_query.message.edit(f"Text set to: {text}")
-                    await asyncio.sleep(1)  # Brief delay for better UX
+                    await asyncio.sleep(1)
                     text, markup = create_main_panel(user_id)
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
@@ -172,7 +228,7 @@ async def handle_callback(client, callback_query):
                 color = response.text.strip().lower()
                 settings['font_color'] = color
                 await callback_query.message.edit(f"Color set to: {color}")
-                await asyncio.sleep(1)  # Brief delay for better UX
+                await asyncio.sleep(1)
                 text, markup = create_main_panel(user_id)
                 await callback_query.message.edit(text, reply_markup=markup)
                 await callback_query.answer()
@@ -198,7 +254,7 @@ async def handle_callback(client, callback_query):
                     if 10 <= size <= 100:
                         settings['font_size'] = size
                         await callback_query.message.edit(f"Font size set to: {size}")
-                        await asyncio.sleep(1)  # Brief delay for better UX
+                        await asyncio.sleep(1)
                         text, markup = create_main_panel(user_id)
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
@@ -229,7 +285,7 @@ async def handle_callback(client, callback_query):
                     if 0 <= opacity <= 100:
                         settings['text_opacity'] = opacity
                         await callback_query.message.edit(f"Opacity set to: {opacity}%")
-                        await asyncio.sleep(1)  # Brief delay for better UX
+                        await asyncio.sleep(1)
                         text, markup = create_main_panel(user_id)
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
@@ -244,10 +300,37 @@ async def handle_callback(client, callback_query):
                 await callback_query.answer()
             return
 
-        
+        # NEW: Logo callback
+        if data == "wm_logo":
+            await callback_query.message.edit(
+                "Send me a PNG logo URL (e.g., https://example.com/logo.png)\nMust start with 'https' and end with '.png'\nTimeout: 30 seconds",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
+            )
+            try:
+                response = await callback_query.message.chat.ask(
+                    "Waiting for your logo URL input...",
+                    filters=filters.text,
+                    timeout=30
+                )
+                url = response.text.strip()
+                if re.match(r'^https://.*\.png$', url):
+                    await db.set_logo_url(user_id, url)
+                    await callback_query.message.edit(f"Logo URL set to: {url}")
+                    await asyncio.sleep(1)
+                    text, markup = create_main_panel(user_id)
+                    await callback_query.message.edit(text, reply_markup=markup)
+                else:
+                    await callback_query.message.edit("Invalid URL. Must start with 'https' and end with '.png'. Try again.")
+                await callback_query.answer()
+            except TimeoutError:
+                text, markup = create_main_panel(user_id)
+                await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
+                await callback_query.answer()
+            return
+
         if data == "wm_full_command":
             await callback_query.message.edit(
-                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10")\nTimeout: 30 seconds',
+                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10" or any FFmpeg filter)\nTimeout: 30 seconds',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
             )
             try:
@@ -257,14 +340,15 @@ async def handle_callback(client, callback_query):
                     timeout=30
                 )
                 command = response.text.strip()
-                if command.startswith('-vf "drawtext=') and command.endswith('"'):
+                # MODIFIED: Removed strict validation
+                if command:
                     await db.set_watermark(user_id, watermark=command)
                     await callback_query.message.edit(f"Watermark command set to: {command}")
                     await asyncio.sleep(1)
                     text, markup = create_main_panel(user_id)
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
-                    await callback_query.message.edit("Invalid command format. Must start with -vf and contain drawtext.")
+                    await callback_query.message.edit("Command cannot be empty. Try again.")
                 await callback_query.answer()
             except TimeoutError:
                 text, markup = create_main_panel(user_id)
@@ -281,7 +365,7 @@ async def handle_callback(client, callback_query):
             await callback_query.answer()
             return
 
-        await callback_query.answer("Unknown callback data.")  # Fallback for unrecognized data
+        await callback_query.answer("Unknown callback data.")
 
     except Exception as e:
         logger.error(f"Error in callback handler for user {user_id}: {str(e)}")
@@ -300,13 +384,25 @@ async def view_wm(client, message):
     wm_code = await db.get_watermark(user_id)
 
     if wm_code:
-        await SnowDev.edit(f"User Watermark Settings:\n"
-                           f"Text: {settings['text']}\n"
-                           f"Position: {settings['position'].replace('-', ' ').title()}\n"
-                           f"Font Colour: {settings['font_color'].title()}\n"
-                           f"Font Size: {settings['font_size']}\n"
-                           f"Text Opacity: {settings['text_opacity']}%\n"
-                           f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
+        # MODIFIED: Show custom command if set, otherwise show settings
+        if wm_code.startswith('-vf "drawtext=') or wm_code.startswith('-i '):
+            await SnowDev.edit(
+                f"Custom Watermark Command:\n`{wm_code}`\n\n"
+                f"⚠️ Manual settings are disabled.\n"
+                f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**"
+            )
+        else:
+            logo_url = await db.get_logo_url(user_id)
+            await SnowDev.edit(
+                f"User Watermark Settings:\n"
+                f"Text: {settings['text']}\n"
+                f"Position: {settings['position'].replace('-', ' ').title()}\n"
+                f"Font Colour: {settings['font_color'].title()}\n"
+                f"Font Size: {settings['font_size']}\n"
+                f"Text Opacity: {settings['text_opacity']}%\n"
+                f"Logo: {'Set' if logo_url else 'Not Set'}\n"
+                f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**"
+            )
     else:
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
 
@@ -317,5 +413,10 @@ async def delete_wm(client, message):
         return
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
-    await db.set_watermark(message.from_user.id, watermark=None)
+    user_id = message.from_user.id
+    # MODIFIED: Delete both watermark and logo_url
+    await db.set_watermark(user_id, watermark=None)
+    await db.delete_logo_url(user_id)
+    # Reset in-memory settings
+    user_settings[user_id] = DEFAULT_SETTINGS.copy()
     await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
