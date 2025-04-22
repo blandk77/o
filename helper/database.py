@@ -39,15 +39,25 @@ class Database:
         user = await self.col.find_one({'id': int(id)})
         return user.get('thumbnail', None)
 
-    async def set_watermark(self, user_id, watermark):
-        await self.col.update_one({'id': int(user_id)}, {'$set': {'watermark': watermark}})
+    async def set_watermark(self, user_id, watermark, is_custom=False):
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$set': {'watermark': watermark, 'is_custom_command': is_custom}}
+        )
 
     async def get_watermark(self, id):
         user = await self.col.find_one({'id': int(id)})
-        return user.get('watermark', None)    
+        return user.get('watermark', None)
+
+    async def get_custom_command_status(self, id):
+        user = await self.col.find_one({'id': int(id)})
+        return user.get('is_custom_command', False)
 
     async def delete_watermark(self, user_id):
-        await self.col.update_one({'id': int(user_id)}, {'$unset': {'watermark': ""}})
+        await self.col.update_one(
+            {'id': int(user_id)},
+            {'$unset': {'watermark': "", 'is_custom_command': ""}}
+        )
 
     async def set_logo_url(self, user_id, logo_url):
         await self.col.update_one({'id': int(user_id)}, {'$set': {'logo_url': logo_url}})
