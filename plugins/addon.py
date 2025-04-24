@@ -7,11 +7,13 @@ import asyncio
 from asyncio.exceptions import TimeoutError
 import logging
 
+# Set up logging for debugging (optional)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 user_settings = {}
 
+# Default settings template
 DEFAULT_SETTINGS = {
     "text": "Telegram Guy!!",
     "position": "top-right",
@@ -20,6 +22,7 @@ DEFAULT_SETTINGS = {
     "text_opacity": 100
 }
 
+# Valid positions for watermark
 POSITIONS = [
     ["top-left", "top-center", "top-right"],
     ["center-left", "center", "center-right"],
@@ -31,19 +34,15 @@ def get_user_settings(user_id):
         user_settings[user_id] = DEFAULT_SETTINGS.copy()
     return user_settings[user_id]
 
-async def build_watermark_command(user_id, settings, resolution="840:-1"):
-    if await db.get_custom_command_status(user_id):
-        return f"{await db.get_watermark(user_id)} -vf \"scale={resolution}\""
-    command = (
-        f"drawtext=text='{settings['text']}':"
-        f"fontcolor={settings['font_color']}:"
-        f"fontsize={settings['font_size']}:"
-        f"alpha={settings['text_opacity']/100:.2f}:"
-        f"x={get_position_x(settings['position'])}:"
-        f"y={get_position_y(settings['position'])}"
-    )
-    full_command = f"-vf \"{command},scale={resolution}\""
-    await db.set_watermark(user_id, watermark=full_command, is_custom=False)
+async def build_watermark_command(user_id, settings):
+    command = (f"drawtext=text='{settings['text']}':"
+               f"fontcolor={settings['font_color']}:"
+               f"fontsize={settings['font_size']}:"
+               f"alpha={settings['text_opacity']/100:.2f}:"
+               f"x={get_position_x(settings['position'])}:"
+               f"y={get_position_y(settings['position'])}")
+    full_command = f'-vf "{command}"'
+    await db.set_watermark(user_id, watermark=full_command)
     return full_command
 
 def get_position_x(position):
@@ -62,38 +61,29 @@ def get_position_y(position):
     else:
         return "(h-th)/2"
 
-async def create_main_panel(user_id):
+def create_main_panel(user_id):
     settings = get_user_settings(user_id)
-    text = (
-        f"User Watermark Settings:\n"
-        f"Text: {settings['text']}\n"
-        f"Position: {settings['position'].replace('-', ' ').title()}\n"
-        f"Font Colour: {settings['font_color'].title()}\n"
-        f"Font Size: {settings['font_size']}\n"
-        f"Text Opacity: {settings['text_opacity']}%\n"
-    )
-    if await db.get_custom_command_status(user_id):
-        text += "\n⚠️ Custom command is set. Manual settings are disabled."
-        buttons = [
-            [InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")],
-            [InlineKeyboardButton("Show Command", callback_data="wm_show")]
-        ]
-    else:
-        buttons = [
-            [
-                InlineKeyboardButton("Text", callback_data="wm_text"),
-                InlineKeyboardButton("Position", callback_data="wm_position"),
-                InlineKeyboardButton("Colour", callback_data="wm_color")
-            ],
-            [
-                InlineKeyboardButton("Size", callback_data="wm_size"),
-                InlineKeyboardButton("Opacity", callback_data="wm_opacity")
-            ],
-            [
-                InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command"),
-                InlineKeyboardButton("Show Command", callback_data="wm_show")
-            ]
-        ]
+    text = (f"User Watermark Settings:\n"
+            f"Text: {settings['text']}\n"
+            f"Position: {settings['position'].replace('-', ' ').title()}\n"
+            f"Font Colour: {settings['font_color'].title()}\n"
+            f"Font Size: {settings['font_size']}\n"
+            f"Text Opacity: {settings['text_opacity']}%")
+    
+    buttons = [
+        [
+            InlineKeyboardButton("Text", callback_data="wm_text"),
+            InlineKeyboardButton("Position", callback_data="wm_position"),
+            InlineKeyboardButton("Colour", callback_data="wm_color")
+        ],
+        [
+            InlineKeyboardButton("Size", callback_data="wm_size"),
+            InlineKeyboardButton("Opacity", callback_data="wm_opacity"),
+            InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")  # NEW: Added Full Command button
+        ],
+        [InlineKeyboardButton("Show Command", callback_data="wm_show")]
+    ]
+    
     return text, InlineKeyboardMarkup(buttons)
 
 def create_position_panel():
@@ -105,10 +95,11 @@ def create_position_panel():
     buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
     return text, InlineKeyboardMarkup(buttons)
 
+
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
     user_id = message.from_user.id
-    text, markup = await create_main_panel(user_id)
+    text, markup = create_main_panel(user_id)
     await message.reply(text, reply_markup=markup)
 
 @Client.on_callback_query(filters.regex("^wm_"))
@@ -118,18 +109,10 @@ async def handle_callback(client, callback_query):
     settings = get_user_settings(user_id)
 
     try:
-        logger.info(f"Received callback from user {user_id}: {data}")
-
-        if await db.get_custom_command_status(user_id) and data in ["wm_text", "wm_position", "wm_color", "wm_size", "wm_opacity"] or data.startswith("wm_pos_"):
-            await callback_query.message.edit(
-                "⚠️ Custom command is set. Manual settings are disabled.\nUse 'Custom Full Command' to update or /Dwatermark to reset.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
-            )
-            await callback_query.answer()
-            return
+        logger.info(f"Received callback from user {user_id}: {data}")  # Debug log
 
         if data == "wm_back":
-            text, markup = await create_main_panel(user_id)
+            text, markup = create_main_panel(user_id)
             await callback_query.message.edit(text, reply_markup=markup)
             await callback_query.answer()
             return
@@ -145,18 +128,18 @@ async def handle_callback(client, callback_query):
                     filters=filters.text,
                     timeout=30
                 )
-                text = response.text[:50].strip()
+                text = response.text[:50].strip()  # Limit text length
                 if text:
                     settings['text'] = text
                     await callback_query.message.edit(f"Text set to: {text}")
-                    await asyncio.sleep(1)
-                    text, markup = await create_main_panel(user_id)
+                    await asyncio.sleep(1)  # Brief delay for better UX
+                    text, markup = create_main_panel(user_id)
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
                     await callback_query.message.edit("Text cannot be empty. Try again.")
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = await create_main_panel(user_id)
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -170,7 +153,7 @@ async def handle_callback(client, callback_query):
         if data.startswith("wm_pos_"):
             position = data[7:]
             settings['position'] = position
-            text, markup = await create_main_panel(user_id)
+            text, markup = create_main_panel(user_id)
             await callback_query.message.edit(text, reply_markup=markup)
             await callback_query.answer()
             return
@@ -189,12 +172,12 @@ async def handle_callback(client, callback_query):
                 color = response.text.strip().lower()
                 settings['font_color'] = color
                 await callback_query.message.edit(f"Color set to: {color}")
-                await asyncio.sleep(1)
-                text, markup = await create_main_panel(user_id)
+                await asyncio.sleep(1)  # Brief delay for better UX
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit(text, reply_markup=markup)
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = await create_main_panel(user_id)
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -215,8 +198,8 @@ async def handle_callback(client, callback_query):
                     if 10 <= size <= 100:
                         settings['font_size'] = size
                         await callback_query.message.edit(f"Font size set to: {size}")
-                        await asyncio.sleep(1)
-                        text, markup = await create_main_panel(user_id)
+                        await asyncio.sleep(1)  # Brief delay for better UX
+                        text, markup = create_main_panel(user_id)
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
                         await callback_query.message.edit("Font size must be between 10 and 100. Try again.")
@@ -225,7 +208,7 @@ async def handle_callback(client, callback_query):
                     await callback_query.message.edit("Invalid number. Please send a number (e.g., 20).")
                     await callback_query.answer()
             except TimeoutError:
-                text, markup = await create_main_panel(user_id)
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -246,8 +229,8 @@ async def handle_callback(client, callback_query):
                     if 0 <= opacity <= 100:
                         settings['text_opacity'] = opacity
                         await callback_query.message.edit(f"Opacity set to: {opacity}%")
-                        await asyncio.sleep(1)
-                        text, markup = await create_main_panel(user_id)
+                        await asyncio.sleep(1)  # Brief delay for better UX
+                        text, markup = create_main_panel(user_id)
                         await callback_query.message.edit(text, reply_markup=markup)
                     else:
                         await callback_query.message.edit("Opacity must be between 0 and 100. Try again.")
@@ -256,14 +239,15 @@ async def handle_callback(client, callback_query):
                     await callback_query.message.edit("Invalid number. Please send a number (e.g., 50).")
                     await callback_query.answer()
             except TimeoutError:
-                text, markup = await create_main_panel(user_id)
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
 
+        
         if data == "wm_full_command":
             await callback_query.message.edit(
-                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10" or any FFmpeg filter)\nTimeout: 30 seconds',
+                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10")\nTimeout: 30 seconds',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
             )
             try:
@@ -273,17 +257,17 @@ async def handle_callback(client, callback_query):
                     timeout=30
                 )
                 command = response.text.strip()
-                if command:
-                    await db.set_watermark(user_id, watermark=command, is_custom=True)
+                if command.startswith('-vf "drawtext=') and command.endswith('"'):
+                    await db.set_watermark(user_id, watermark=command)
                     await callback_query.message.edit(f"Watermark command set to: {command}")
                     await asyncio.sleep(1)
-                    text, markup = await create_main_panel(user_id)
+                    text, markup = create_main_panel(user_id)
                     await callback_query.message.edit(text, reply_markup=markup)
                 else:
-                    await callback_query.message.edit("Command cannot be empty. Try again.")
+                    await callback_query.message.edit("Invalid command format. Must start with -vf and contain drawtext.")
                 await callback_query.answer()
             except TimeoutError:
-                text, markup = await create_main_panel(user_id)
+                text, markup = create_main_panel(user_id)
                 await callback_query.message.edit("Timeout! Back to main panel.", reply_markup=markup)
                 await callback_query.answer()
             return
@@ -297,7 +281,7 @@ async def handle_callback(client, callback_query):
             await callback_query.answer()
             return
 
-        await callback_query.answer("Unknown callback data.")
+        await callback_query.answer("Unknown callback data.")  # Fallback for unrecognized data
 
     except Exception as e:
         logger.error(f"Error in callback handler for user {user_id}: {str(e)}")
@@ -316,22 +300,13 @@ async def view_wm(client, message):
     wm_code = await db.get_watermark(user_id)
 
     if wm_code:
-        if await db.get_custom_command_status(user_id):
-            await SnowDev.edit(
-                f"Custom Watermark Command:\n`{wm_code}`\n\n"
-                f"⚠️ Manual settings are disabled.\n"
-                f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**"
-            )
-        else:
-            await SnowDev.edit(
-                f"User Watermark Settings:\n"
-                f"Text: {settings['text']}\n"
-                f"Position: {settings['position'].replace('-', ' ').title()}\n"
-                f"Font Colour: {settings['font_color'].title()}\n"
-                f"Font Size: {settings['font_size']}\n"
-                f"Text Opacity: {settings['text_opacity']}%\n"
-                f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**"
-            )
+        await SnowDev.edit(f"User Watermark Settings:\n"
+                           f"Text: {settings['text']}\n"
+                           f"Position: {settings['position'].replace('-', ' ').title()}\n"
+                           f"Font Colour: {settings['font_color'].title()}\n"
+                           f"Font Size: {settings['font_size']}\n"
+                           f"Text Opacity: {settings['text_opacity']}%\n"
+                           f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
     else:
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
 
@@ -342,7 +317,5 @@ async def delete_wm(client, message):
         return
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
-    user_id = message.from_user.id
-    await db.set_watermark(user_id, watermark=None, is_custom=False)
-    user_settings[user_id] = DEFAULT_SETTINGS.copy()
+    await db.set_watermark(message.from_user.id, watermark=None)
     await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
