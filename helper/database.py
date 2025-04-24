@@ -39,25 +39,15 @@ class Database:
         user = await self.col.find_one({'id': int(id)})
         return user.get('thumbnail', None)
 
-    async def set_watermark(self, user_id, watermark, is_custom=False):
-        await self.col.update_one(
-            {'id': int(user_id)},
-            {'$set': {'watermark': watermark, 'is_custom_command': is_custom}}
-        )
+    async def set_watermark(self, user_id, watermark):
+        await self.col.update_one({'id': int(user_id)}, {'$set': {'watermark': watermark}})
 
     async def get_watermark(self, id):
         user = await self.col.find_one({'id': int(id)})
-        return user.get('watermark', None)
-
-    async def get_custom_command_status(self, id):
-        user = await self.col.find_one({'id': int(id)})
-        return user.get('is_custom_command', False)
+        return user.get('watermark', None)    
 
     async def delete_watermark(self, user_id):
-        await self.col.update_one(
-            {'id': int(user_id)},
-            {'$unset': {'watermark': "", 'is_custom_command': ""}}
-        )    
+        await self.col.update_one({'id': int(user_id)}, {'$unset': {'watermark': ""}})    
         
     async def set_ffmpegcode(self, user_id, ffmpegcode):
         await self.col.update_one({'id': int(user_id)}, {'$set': {'ffmpegcode': ffmpegcode}})
