@@ -7,6 +7,8 @@ RUN apt -qq update && \
     apt-get install wget -y -f && \
     apt-get install fontconfig -y -f
 
+RUN mkdir /bot/Telegram-Guy && chmod 777 /bot/Telegram-Guy
+
 COPY . .
 RUN pip3 install -r requirements.txt
 CMD ["bash", "run.sh"]
