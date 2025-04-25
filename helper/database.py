@@ -48,10 +48,22 @@ class Database:
 
     async def delete_watermark(self, user_id):
         await self.col.update_one({'id': int(user_id)}, {'$unset': {'watermark': ""}})    
-        
+
+    async def add_image(self, user_id, filename):
+    await self.col.update_one(
+        {'id': int(user_id)},
+        {'$push': {'images': filename}},
+        upsert=True
+    )
+
+    async def get_images(self, user_id):
+    user = await self.col.find_one({'id': int(user_id)})
+    return user.get('images', []) if user else []
+
+    
     async def set_ffmpegcode(self, user_id, ffmpegcode):
         await self.col.update_one({'id': int(user_id)}, {'$set': {'ffmpegcode': ffmpegcode}})
-
+        
     async def get_ffmpegcode(self, id):
         user = await self.col.find_one({'id': int(id)})
         return user.get('ffmpegcode', None)
