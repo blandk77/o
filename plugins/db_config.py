@@ -1,15 +1,12 @@
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-import asyncio, requests, os, re
+import asyncio
 from helper.database import db
 from helper.utils import CANT_CONFIG_GROUP_MSG
 from script import Txt
 from asyncio.exceptions import TimeoutError
 from urllib.parse import urlparse
 
-
-TELEGRAM_GUY_DIR = "/bot/Telegram-Guy"
-MAX_FILE_SIZE = 5 * 1024 * 1024
 
 @Client.on_message((filters.group | filters.private) & filters.command('set_caption'))
 async def add_caption(client, message):
@@ -129,78 +126,6 @@ async def see_ffmpeg(client, message):
     else:
         await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Fғᴍᴘᴇɢ Cᴏᴅᴇ**__")
 
-@Client.on_message(filters.command("i") & (filters.reply))
-async def image_download_command(client, message):
-    user_id = message.from_user.id
-    logger.info(f"Image download command triggered by user {user_id}")
-    
-    if not message.reply_to_message:
-        await message.reply("Please reply to a photo or a link starting with https://")
-        return
-
-    status_msg = await message.reply("Downloading the image.....")
-    
-    try:
-        # Check if replied to a photo
-        if message.reply_to_message.photo:
-            logger.info(f"Downloading photo for user {user_id}")
-            file_path = await client.download_media(message.reply_to_message.photo)
-            image_data = open(file_path, "rb").read()
-            os.remove(file_path)  # Clean up temporary file
-        # Check if replied to a message with a link
-        elif message.reply_to_message.text:
-            url = message.reply_to_message.text.strip()
-            if not url.startswith("https://"):
-                await status_msg.edit("Invalid link. Must start with https://")
-                return
-            logger.info(f"Downloading image from URL for user {user_id}: {url}")
-            response = requests.get(url, stream=True)
-            if response.status_code != 200:
-                await status_msg.edit("Failed to download image. Invalid URL or server error.")
-                return
-            if int(response.headers.get("content-length", 0)) > MAX_FILE_SIZE:
-                await status_msg.edit("Image size exceeds 10MB limit.")
-                return
-            # Validate content type
-            content_type = response.headers.get("content-type", "").lower()
-            if not content_type.startswith("image/"):
-                await status_msg.edit("URL does not point to a valid image.")
-                return
-            image_data = response.content
-        else:
-            await status_msg.edit("Please reply to a photo or a valid https:// link.")
-            return
-
-        
-        await status_msg.edit("Uploading to the Server.....")
-
-        # Generate unique filename
-        base_name = f"image_{user_id}"
-        extension = ".png"
-        counter = 0
-        filename = base_name + extension
-        while os.path.exists(os.path.join(TELEGRAM_GUY_DIR, filename)):
-            counter += 1
-            filename = f"image{counter}_{user_id}{extension}"
-        
-        # Save image to Telegram-Guy folder
-        file_path = os.path.join(TELEGRAM_GUY_DIR, filename)
-        with open(file_path, "wb") as f:
-            f.write(image_data)
-        logger.info(f"Image saved for user {user_id}: {file_path}")
-
-        # Store filename in MongoDB
-        await db.add_image(user_id, filename)
-        logger.info(f"Image filename stored in DB for user {user_id}: {filename}")
-
-        # Update status with location
-        await status_msg.edit(f"Your image Location: {filename}")
-
-    except Exception as e:
-        logger.error(f"Error in image_download_command for user {user_id}: {str(e)}")
-        await status_msg.edit("An error occurred while processing the image.")
-        raise
-        
 @Client.on_message((filters.group | filters.private) & filters.command(['del_ffmpeg', 'delffmpeg']))
 async def del_ffmpeg(client, message):
 
