@@ -6,10 +6,7 @@ from script import Txt
 import asyncio
 from asyncio.exceptions import TimeoutError
 import logging
-import requests
 import os
-import re
-from urllib.parse import urlparse
 
 # Set up logging for debugging
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +18,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
 
 # Default settings template
 DEFAULT_SETTINGS = {
-    "text": "Telegram Guy!!",
+    "text": "Telegram Guy!!",  # Default text
     "position": "top-right",
     "font_color": "white",
     "font_size": 20,
@@ -43,8 +40,21 @@ def get_user_settings(user_id):
         logger.info(f"Initialized default settings for user {user_id}")
     return user_settings[user_id]
 
+def create_position_panel():
+    text = "Select the position for the text from below 👇"
+    buttons = [
+        [InlineKeyboardButton(pos.replace('-', ' ').title(), callback_data=f"wm_pos_{pos}") for pos in row]
+        for row in POSITIONS
+    ]
+    buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
+    return text, InlineKeyboardMarkup(buttons)
+
+
 async def build_watermark_command(user_id, settings):
     logger.info(f"Building watermark command for user {user_id}")
+    if not settings['text']:
+        logger.warning(f"No text set for user {user_id}, cannot build watermark command")
+        return None
     command = (f"drawtext=text='{settings['text']}':"
                f"fontcolor={settings['font_color']}:"
                f"fontsize={settings['font_size']}:"
@@ -52,8 +62,12 @@ async def build_watermark_command(user_id, settings):
                f"x={get_position_x(settings['position'])}:"
                f"y={get_position_y(settings['position'])}")
     full_command = f'-vf "{command}"'
-    await db.set_watermark(user_id, watermark=full_command)
-    logger.info(f"Watermark command set for user {user_id}: {full_command}")
+    try:
+        await db.set_watermark(user_id, watermark=full_command)
+        logger.info(f"Watermark command set for user {user_id}: {full_command}")
+    except Exception as e:
+        logger.error(f"Failed to save watermark for user {user_id}: {str(e)}")
+        return None
     return full_command
 
 def get_position_x(position):
@@ -72,15 +86,6 @@ def get_position_y(position):
     else:
         return "(h-th)/2"
 
-def create_position_panel():
-    text = "Select the position for the text from below 👇"
-    buttons = [
-        [InlineKeyboardButton(pos.replace('-', ' ').title(), callback_data=f"wm_pos_{pos}") for pos in row]
-        for row in POSITIONS
-    ]
-    buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
-    return text, InlineKeyboardMarkup(buttons)
-    
 async def create_main_panel(user_id):
     logger.info(f"Creating main panel for user {user_id}")
     settings = get_user_settings(user_id)
@@ -96,7 +101,7 @@ async def create_main_panel(user_id):
         ]
     else:
         text = (f"User Watermark Settings:\n"
-                f"Text: {settings['text']}\n"
+                f"Text: {settings['text'] or 'Not set'}\n"
                 f"Position: {settings['position'].replace('-', ' ').title()}\n"
                 f"Font Colour: {settings['font_color'].title()}\n"
                 f"Font Size: {settings['font_size']}\n"
@@ -131,54 +136,35 @@ async def watermark_command(client, message):
         await message.reply("An error occurred. Please try again.")
         raise
 
-@Client.on_message(filters.command("i") & (filters.reply & filters.private))
+@Client.on_message(filters.command("i") & filters.reply)
 async def image_download_command(client, message):
     user_id = message.from_user.id
     logger.info(f"Image download command triggered by user {user_id}")
     
-    if not message.reply_to_message:
-        await message.reply("Please reply to a photo or a link starting with https://")
+    if not message.reply_to_message or not message.reply_to_message.photo:
+        await message.reply("Please reply to a photo.")
         return
 
     status_msg = await message.reply("Downloading the image.....")
     
     try:
-        # Check if replied to a photo
-        if message.reply_to_message.photo:
-            logger.info(f"Downloading photo for user {user_id}")
-            file_path = await client.download_media(message.reply_to_message.photo)
-            image_data = open(file_path, "rb").read()
-            os.remove(file_path)  # Clean up temporary file
-        # Check if replied to a message with a link
-        elif message.reply_to_message.text:
-            url = message.reply_to_message.text.strip()
-            if not url.startswith("https://"):
-                await status_msg.edit("Invalid link. Must start with https://")
-                return
-            logger.info(f"Downloading image from URL for user {user_id}: {url}")
-            response = requests.get(url, stream=True)
-            if response.status_code != 200:
-                await status_msg.edit("Failed to download image. Invalid URL or server error.")
-                return
-            if int(response.headers.get("content-length", 0)) > MAX_FILE_SIZE:
-                await status_msg.edit("Image size exceeds 10MB limit.")
-                return
-            # Validate content type
-            content_type = response.headers.get("content-type", "").lower()
-            if not content_type.startswith("image/"):
-                await status_msg.edit("URL does not point to a valid image.")
-                return
-            image_data = response.content
-        else:
-            await status_msg.edit("Please reply to a photo or a valid https:// link.")
+        # Download the photo
+        logger.info(f"Downloading photo for user {user_id}")
+        file_path = await client.download_media(message.reply_to_message.photo)
+        with open(file_path, "rb") as f:
+            image_data = f.read()
+        if len(image_data) > MAX_FILE_SIZE:
+            os.remove(file_path)
+            await status_msg.edit("Image size exceeds 10MB limit.")
             return
+        os.remove(file_path)  # Clean up temporary file
 
         # Update status
         await status_msg.edit("Uploading to the Server.....")
 
         # Generate unique filename
         base_name = f"image_{user_id}"
-        extension = ".png"  # Default extension (can be adjusted based on content-type)
+        extension = ".png"  # Default extension
         counter = 0
         filename = base_name + extension
         while os.path.exists(os.path.join(TELEGRAM_GUY_DIR, filename)):
@@ -247,6 +233,8 @@ async def handle_callback(client, callback_query):
                 text = response.text[:50].strip()
                 if text:
                     settings['text'] = text
+                    # Build and save watermark command immediately
+                    await build_watermark_command(user_id, settings)
                     await callback_query.message.edit(f"Text set to: {text}")
                     await response.delete()
                     await asyncio.sleep(1)
@@ -270,6 +258,8 @@ async def handle_callback(client, callback_query):
         if data.startswith("wm_pos_"):
             position = data[7:]
             settings['position'] = position
+            # Build and save watermark command
+            await build_watermark_command(user_id, settings)
             text, markup = await create_main_panel(user_id)
             await callback_query.message.edit(text, reply_markup=markup)
             await callback_query.answer()
@@ -288,6 +278,8 @@ async def handle_callback(client, callback_query):
                 )
                 color = response.text.strip().lower()
                 settings['font_color'] = color
+                # Build and save watermark command
+                await build_watermark_command(user_id, settings)
                 await callback_query.message.edit(f"Color set to: {color}")
                 await response.delete()
                 await asyncio.sleep(1)
@@ -315,6 +307,8 @@ async def handle_callback(client, callback_query):
                     size = int(response.text.strip())
                     if 10 <= size <= 100:
                         settings['font_size'] = size
+                        # Build and save watermark command
+                        await build_watermark_command(user_id, settings)
                         await callback_query.message.edit(f"Font size set to: {size}")
                         await response.delete()
                         await asyncio.sleep(1)
@@ -347,6 +341,8 @@ async def handle_callback(client, callback_query):
                     opacity = int(response.text.strip())
                     if 0 <= opacity <= 100:
                         settings['text_opacity'] = opacity
+                        # Build and save watermark command
+                        await build_watermark_command(user_id, settings)
                         await callback_query.message.edit(f"Opacity set to: {opacity}%")
                         await response.delete()
                         await asyncio.sleep(1)
@@ -405,7 +401,7 @@ async def handle_callback(client, callback_query):
                 )
             else:
                 await callback_query.message.edit(
-                    "No watermark set.",
+                    "No watermark set. Please set at least the text to generate a watermark.",
                     reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
                 )
             await callback_query.answer()
@@ -431,19 +427,23 @@ async def view_wm(client, message):
     wm_code = await db.get_watermark(user_id)
     logger.info(f"Vwatermark command for user {user_id}: {wm_code}")
 
-    if wm_code:
-        if settings['is_custom'] or not wm_code.startswith('-vf "drawtext=text='):
-            await SnowDev.edit(f"Custom Watermark Command:\n`{wm_code}`\n\n**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
+    try:
+        if wm_code:
+            if settings['is_custom'] or not wm_code.startswith('-vf "drawtext=text='):
+                await SnowDev.edit(f"Custom Watermark Command:\n`{wm_code}`\n\n**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
+            else:
+                await SnowDev.edit(f"User Watermark Settings:\n"
+                                  f"Text: {settings['text'] or 'Not set'}\n"
+                                  f"Position: {settings['position'].replace('-', ' ').title()}\n"
+                                  f"Font Colour: {settings['font_color'].title()}\n"
+                                  f"Font Size: {settings['font_size']}\n"
+                                  f"Text Opacity: {settings['text_opacity']}%\n"
+                                  f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
         else:
-            await SnowDev.edit(f"User Watermark Settings:\n"
-                              f"Text: {settings['text']}\n"
-                              f"Position: {settings['position'].replace('-', ' ').title()}\n"
-                              f"Font Colour: {settings['font_color'].title()}\n"
-                              f"Font Size: {settings['font_size']}\n"
-                              f"Text Opacity: {settings['text_opacity']}%\n"
-                              f"**Use** __/Dwatermark__ **To delete Watermark and encode without Watermark**")
-    else:
-        await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
+            await SnowDev.edit(f"😔 __**Yᴏᴜ Dᴏɴ'ᴛ Hᴀᴠᴇ Aɴy Wᴀᴛᴇʀᴍᴀʀᴋ**__")
+    except Exception as e:
+        logger.error(f"Error in view_wm for user {user_id}: {str(e)}")
+        await SnowDev.edit("An error occurred while fetching watermark details.")
 
 @Client.on_message((filters.group | filters.private) & filters.command('Dwatermark'))
 async def delete_wm(client, message):
@@ -453,7 +453,16 @@ async def delete_wm(client, message):
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
     user_id = message.from_user.id
-    await db.delete_watermark(user_id)
-    user_settings[user_id]['is_custom'] = False
-    logger.info(f"Watermark deleted for user {user_id}")
-    await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
+    try:
+        async with asyncio.timeout(5):  # 5-second timeout for DB operation
+            await db.delete_watermark(user_id)
+            user_settings[user_id]['is_custom'] = False
+            logger.info(f"Watermark deleted for user {user_id}")
+            await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout in delete_wm for user {user_id}")
+        await SnowDev.edit("Error: Operation timed out. Please try again.")
+    except Exception as e:
+        logger.error(f"Error in delete_wm for user {user_id}: {str(e)}")
+        await SnowDev.edit("An error occurred while deleting the watermark.")
+                
