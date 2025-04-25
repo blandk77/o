@@ -6,12 +6,18 @@ from script import Txt
 import asyncio
 from asyncio.exceptions import TimeoutError
 import logging
+import requests
+import os
+import re
+from urllib.parse import urlparse
 
 # Set up logging for debugging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 user_settings = {}
+TELEGRAM_GUY_DIR = "/bot/Telegram-Guy"
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB limit
 
 # Default settings template
 DEFAULT_SETTINGS = {
@@ -66,14 +72,22 @@ def get_position_y(position):
     else:
         return "(h-th)/2"
 
+def create_position_panel():
+    text = "Select the position for the text from below 👇"
+    buttons = [
+        [InlineKeyboardButton(pos.replace('-', ' ').title(), callback_data=f"wm_pos_{pos}") for pos in row]
+        for row in POSITIONS
+    ]
+    buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
+    return text, InlineKeyboardMarkup(buttons)
+    
 async def create_main_panel(user_id):
     logger.info(f"Creating main panel for user {user_id}")
     settings = get_user_settings(user_id)
-    watermark = await db.get_watermark(user_id)  # Properly await the DB call
+    watermark = await db.get_watermark(user_id)
     logger.info(f"Watermark from DB for user {user_id}: {watermark}")
 
     if settings['is_custom'] or (watermark and not watermark.startswith('-vf "drawtext=text=')):
-        # Custom command is set
         text = "Custom Watermark Command is set.\nUse /Dwatermark or the button below to reset."
         buttons = [
             [InlineKeyboardButton("Custom Full Command", callback_data="wm_full_command")],
@@ -81,7 +95,6 @@ async def create_main_panel(user_id):
             [InlineKeyboardButton("Show Command", callback_data="wm_show")]
         ]
     else:
-        # Manual settings
         text = (f"User Watermark Settings:\n"
                 f"Text: {settings['text']}\n"
                 f"Position: {settings['position'].replace('-', ' ').title()}\n"
@@ -105,26 +118,89 @@ async def create_main_panel(user_id):
     logger.info(f"Main panel created for user {user_id}: {text}")
     return text, InlineKeyboardMarkup(buttons)
 
-def create_position_panel():
-    text = "Select the position for the text from below 👇"
-    buttons = [
-        [InlineKeyboardButton(pos.replace('-', ' ').title(), callback_data=f"wm_pos_{pos}") for pos in row]
-        for row in POSITIONS
-    ]
-    buttons.append([InlineKeyboardButton("Back", callback_data="wm_back")])
-    return text, InlineKeyboardMarkup(buttons)
-
 @Client.on_message(filters.command("Watermark"))
 async def watermark_command(client, message):
     user_id = message.from_user.id
     logger.info(f"Watermark command triggered by user {user_id}")
     try:
-        text, markup = await create_main_panel(user_id)  # Ensure async call
+        text, markup = await create_main_panel(user_id)
         await message.reply(text, reply_markup=markup)
         logger.info(f"Watermark command reply sent to user {user_id}")
     except Exception as e:
         logger.error(f"Error in watermark_command for user {user_id}: {str(e)}")
         await message.reply("An error occurred. Please try again.")
+        raise
+
+@Client.on_message(filters.command("i") & (filters.reply & filters.private))
+async def image_download_command(client, message):
+    user_id = message.from_user.id
+    logger.info(f"Image download command triggered by user {user_id}")
+    
+    if not message.reply_to_message:
+        await message.reply("Please reply to a photo or a link starting with https://")
+        return
+
+    status_msg = await message.reply("Downloading the image.....")
+    
+    try:
+        # Check if replied to a photo
+        if message.reply_to_message.photo:
+            logger.info(f"Downloading photo for user {user_id}")
+            file_path = await client.download_media(message.reply_to_message.photo)
+            image_data = open(file_path, "rb").read()
+            os.remove(file_path)  # Clean up temporary file
+        # Check if replied to a message with a link
+        elif message.reply_to_message.text:
+            url = message.reply_to_message.text.strip()
+            if not url.startswith("https://"):
+                await status_msg.edit("Invalid link. Must start with https://")
+                return
+            logger.info(f"Downloading image from URL for user {user_id}: {url}")
+            response = requests.get(url, stream=True)
+            if response.status_code != 200:
+                await status_msg.edit("Failed to download image. Invalid URL or server error.")
+                return
+            if int(response.headers.get("content-length", 0)) > MAX_FILE_SIZE:
+                await status_msg.edit("Image size exceeds 10MB limit.")
+                return
+            # Validate content type
+            content_type = response.headers.get("content-type", "").lower()
+            if not content_type.startswith("image/"):
+                await status_msg.edit("URL does not point to a valid image.")
+                return
+            image_data = response.content
+        else:
+            await status_msg.edit("Please reply to a photo or a valid https:// link.")
+            return
+
+        # Update status
+        await status_msg.edit("Uploading to the Server.....")
+
+        # Generate unique filename
+        base_name = f"image_{user_id}"
+        extension = ".png"  # Default extension (can be adjusted based on content-type)
+        counter = 0
+        filename = base_name + extension
+        while os.path.exists(os.path.join(TELEGRAM_GUY_DIR, filename)):
+            counter += 1
+            filename = f"image{counter}_{user_id}{extension}"
+        
+        # Save image to Telegram-Guy folder
+        file_path = os.path.join(TELEGRAM_GUY_DIR, filename)
+        with open(file_path, "wb") as f:
+            f.write(image_data)
+        logger.info(f"Image saved for user {user_id}: {file_path}")
+
+        # Store filename in MongoDB
+        await db.add_image(user_id, filename)
+        logger.info(f"Image filename stored in DB for user {user_id}: {filename}")
+
+        # Update status with location
+        await status_msg.edit(f"Your image Location: {filename}")
+
+    except Exception as e:
+        logger.error(f"Error in image_download_command for user {user_id}: {str(e)}")
+        await status_msg.edit("An error occurred while processing the image.")
         raise
 
 @Client.on_callback_query(filters.regex("^wm_"))
@@ -289,8 +365,11 @@ async def handle_callback(client, callback_query):
             return
 
         if data == "wm_full_command":
+            images = await db.get_images(user_id)
+            image_list = "\n".join([f"- {img}" for img in images]) if images else "None"
             await callback_query.message.edit(
-                'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10" or overlay/filter_complex)\nTimeout: 30 seconds',
+                f'Send me the full watermark command (e.g., -vf "drawtext=text=\'Your Text\':fontsize=24:fontcolor=white:x=10:y=10" or overlay/filter_complex)\n'
+                f'Available images: \n{image_list}\nTimeout: 30 seconds',
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="wm_back")]])
             )
             try:
@@ -338,6 +417,7 @@ async def handle_callback(client, callback_query):
         logger.error(f"Error in callback handler for user {user_id}: {str(e)}")
         await callback_query.message.edit("An error occurred. Please try again.")
         await callback_query.answer("Error occurred.")
+
 
 @Client.on_message((filters.group | filters.private) & filters.command('Vwatermark'))
 async def view_wm(client, message):
