@@ -238,23 +238,10 @@ async def delete_wm(client, message):
 
     SnowDev = await message.reply_text(text="**Please Wait...**", reply_to_message_id=message.id)
     user_id = message.from_user.id
-    try:
-        async with asyncio.timeout(10):  # Increased to 10 seconds
-            # Ensure user document exists
-            user = await db.col.find_one({'id': int(user_id)})
-            if not user:
-                logger.warning(f"No user document found for user {user_id}, creating one")
-                await db.col.insert_one({'id': int(user_id)})
-            await db.delete_watermark(user_id)
-            user_settings[user_id]['is_custom'] = False
-            logger.info(f"Watermark deleted for user {user_id}")
-            await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
-    except asyncio.TimeoutError:
-        logger.error(f"Timeout in delete_wm for user {user_id}")
-        await SnowDev.edit("Error: Operation timed out. Please try again.")
-    except Exception as e:
-        logger.error(f"Error in delete_wm for user {user_id}: {str(e)}")
-        await SnowDev.edit(f"Error: Failed to delete watermark ({str(e)}). Please try again.")
+    await db.delete_watermark(user_id)
+    user_settings[user_id]['is_custom'] = False  # Reset custom flag
+    await SnowDev.edit("❌ __**Wᴀᴛᴇʀᴍᴀʀᴋ Dᴇʟᴇᴛᴇᴅ**__")
+
 
 @Client.on_callback_query(filters.regex("^wm_"))
 async def handle_callback(client, callback_query):
