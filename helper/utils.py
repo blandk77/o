@@ -273,7 +273,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
         try:
             # Upload each part
             for part in part_files:
-                await upload_client.send_document(
+                await upload_client.send_media(
                     UID,
                     document=part,
                     thumb=ph_path,
@@ -282,7 +282,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                     progress_args=("⚠️__**Please wait...**__\n🌨️ **Uᴩʟᴏᴅ Sᴛᴀʀᴛᴇᴅ....**", ms, time.time())
                 )
                 if Config.DUMP_CHANNEL is not None:
-                    await upload_client.send_document(
+                    await upload_client.send_media(
                         Config.DUMP_CHANNEL,
                         document=part,
                         thumb=ph_path,
