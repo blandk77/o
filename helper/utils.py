@@ -256,7 +256,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
         # Check file size against UPLOAD_LIMIT
         if com > bot.UPLOAD_LIMIT and bot.UPLOAD_LIMIT == 2 * 1024 * 1024 * 1024:
             # Non-premium: Split the file
-            await ms.edit("⚠️__**Please wait...**__\n**Splitting file for non-premium upload...**")
+            await ms.edit("⚠️__**Please wait...**__\n**Splitting file Since no premium session string is provided...**")
             part_files = await split_file(Output_Path, 2 * 1024 * 1024 * 1024)  # Split into 2GB parts
         else:
             # Premium or file within limit: No splitting
@@ -275,7 +275,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
             for part in part_files:
                 await upload_client.send_video(
                     UID,
-                    document=part,
+                    video=part,
                     thumb=ph_path,
                     caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx),
                     progress=progress_for_pyrogram,
@@ -284,7 +284,7 @@ async def CompressVideo(bot, query, ffmpegcode, c_thumb):
                 if Config.DUMP_CHANNEL is not None:
                     await upload_client.send_video(
                         Config.DUMP_CHANNEL,
-                        document=part,
+                        video=part,
                         thumb=ph_path,
                         caption=Config.caption.format(filename, humanbytes(org), humanbytes(com), per, x, xx, xxx)
                     )
